@@ -6,8 +6,19 @@ export type MismatchType =
   | 'parameter-drift'
   | 'example-outdated'
 
+export interface ScanReportSummary {
+  repoPath: string
+  commitHash: string
+  scannedAt: string
+  totalIssues: number
+  highCount: number
+  mediumCount: number
+  lowCount: number
+}
+
 export interface Issue {
   id: string
+  issueNumber: number
   title: string
   description: string
   mismatchType: MismatchType
@@ -17,6 +28,15 @@ export interface Issue {
   docSection: string
   status: IssueStatus
   priority: IssuePriority
+  reason: string
+  symbol: string
+  codeFile: string
+  signature?: string
+  detectorTag: 'docstring_stale' | 'doc_file_flagged'
+  score: number
+  cumulativeScore?: number
+  changeSummary: string
+  suggestion: string
   createdAt: string
   updatedAt: string
 }
