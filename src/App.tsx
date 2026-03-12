@@ -1,18 +1,19 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { DashboardPage } from './pages/DashboardPage'
+import { ProjectsPage } from './pages/ProjectsPage'
 import { IssuesPage } from './pages/IssuesPage'
-import { ReportsPage } from './pages/ReportsPage'
-import { SettingsPage } from './pages/SettingsPage'
-import { useReports } from './hooks/useReports'
+import { ScanHistoryPage } from './pages/ScanHistoryPage'
+import { ConfigurationPage } from './pages/ConfigurationPage'
 import './App.css'
 
-type PageKey = 'dashboard' | 'issues' | 'reports' | 'settings'
+type PageKey = 'dashboard' | 'projects' | 'issues' | 'history' | 'configuration'
 
 const pageLabels: Record<PageKey, string> = {
-  dashboard: 'Dashboard',
+  dashboard: 'Dashboard Overview',
+  projects: 'Projects',
   issues: 'Issues',
-  reports: 'History',
-  settings: 'Settings',
+  history: 'Scan History',
+  configuration: 'Configuration',
 }
 
 function NavIcon({ children }: { children: ReactNode }) {
@@ -31,8 +32,19 @@ const navItems: Array<{ key: PageKey; label: string; icon: ReactNode }> = [
     label: 'Dashboard',
     icon: (
       <NavIcon>
-        <path d="M3 13.5 12 4l9 9.5" />
-        <path d="M6 11.5V20h12v-8.5" />
+        <rect x="4" y="4" width="7" height="7" rx="1.3" />
+        <rect x="13" y="4" width="7" height="7" rx="1.3" />
+        <rect x="4" y="13" width="7" height="7" rx="1.3" />
+        <rect x="13" y="13" width="7" height="7" rx="1.3" />
+      </NavIcon>
+    ),
+  },
+  {
+    key: 'projects',
+    label: 'Projects',
+    icon: (
+      <NavIcon>
+        <path d="M3.5 7.5h6l2 2h9v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" />
       </NavIcon>
     ),
   },
@@ -47,18 +59,18 @@ const navItems: Array<{ key: PageKey; label: string; icon: ReactNode }> = [
     ),
   },
   {
-    key: 'reports',
-    label: 'History',
+    key: 'history',
+    label: 'Scan History',
     icon: (
       <NavIcon>
-        <path d="M6 4h8l4 4v12H6z" />
-        <path d="M14 4v4h4M9 13h6M9 17h6" />
+        <path d="M12 3a9 9 0 1 1-6.4 2.6" />
+        <path d="M12 7v5l3 2" />
       </NavIcon>
     ),
   },
   {
-    key: 'settings',
-    label: 'Settings',
+    key: 'configuration',
+    label: 'Configuration',
     icon: (
       <NavIcon>
         <circle cx="12" cy="12" r="3.2" />
@@ -69,47 +81,39 @@ const navItems: Array<{ key: PageKey; label: string; icon: ReactNode }> = [
 ]
 
 function App() {
-  const { reports } = useReports()
   const [activePage, setActivePage] = useState<PageKey>('dashboard')
-  const [focusedIssueId, setFocusedIssueId] = useState<string | null>(null)
-  const [selectedReportId, setSelectedReportId] = useState<string | null>(reports[0]?.id ?? null)
-
-  const selectedReport = useMemo(
-    () => reports.find((report) => report.id === selectedReportId) ?? reports[0] ?? null,
-    [reports, selectedReportId],
-  )
-
-  const handleDashboardReviewIssue = (issueId: string) => {
-    setFocusedIssueId(issueId)
-    setActivePage('issues')
-  }
 
   const pageContent = useMemo(() => {
     switch (activePage) {
+      case 'projects':
+        return <ProjectsPage />
       case 'issues':
-        return <IssuesPage initialIssueId={focusedIssueId} />
-      case 'reports':
-        return (
-          <ReportsPage
-            reports={reports}
-            selectedReport={selectedReport}
-            onSelectReport={(reportId) => setSelectedReportId(reportId)}
-          />
-        )
-      case 'settings':
-        return <SettingsPage />
+        return <IssuesPage />
+      case 'history':
+        return <ScanHistoryPage />
+      case 'configuration':
+        return <ConfigurationPage />
       case 'dashboard':
       default:
-        return <DashboardPage onReviewIssue={handleDashboardReviewIssue} selectedReport={selectedReport} />
+        return <DashboardPage />
     }
-  }, [activePage, focusedIssueId, reports, selectedReport])
+  }, [activePage])
 
   return (
     <div className="app-shell">
       <aside className="app-sidebar">
         <div className="app-brand">
-          <h1>DocRot Detector</h1>
-          <p>CS4485 Capstone</p>
+          <span className="app-brand-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <circle cx="12" cy="12" r="8" />
+              <path d="M12 8v8" />
+              <path d="M8 12h8" />
+            </svg>
+          </span>
+          <div>
+            <h1>DocRot</h1>
+            <p>Detector Admin</p>
+          </div>
         </div>
         <nav className="app-nav">
           {navItems.map((item) => (
@@ -125,15 +129,75 @@ function App() {
             </button>
           ))}
         </nav>
+
+        <div className="app-sidebar-footer">
+          <div className="user-row">
+            <span className="avatar" aria-hidden="true" />
+            <div>
+              <p>Alex Chen</p>
+              <small>Pro Plan</small>
+            </div>
+          </div>
+        </div>
       </aside>
 
       <main className="app-main">
         <header className="app-topbar">
-          <div>
+          <div className="app-topbar-title-wrap">
             <h2>{pageLabels[activePage]}</h2>
-            <p>Code-to-doc mismatch monitoring · Prototype mode</p>
+            {activePage === 'configuration' ? <span className="editor-mode-pill">Editor Mode</span> : null}
           </div>
-          <span className="status-pill">AST Scanner Active</span>
+          <div className="app-topbar-tools">
+            <div className="search-shell">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <circle cx="11" cy="11" r="6.2" />
+                <path d="m16 16 4.2 4.2" />
+              </svg>
+              <input
+                type="text"
+                value={
+                  activePage === 'projects'
+                    ? 'Quick search...'
+                    : activePage === 'configuration'
+                      ? 'Search config...'
+                      : 'Search documentation...'
+                }
+                readOnly
+                aria-label={
+                  activePage === 'projects'
+                    ? 'Quick search'
+                    : activePage === 'configuration'
+                      ? 'Search configuration'
+                      : 'Search documentation'
+                }
+              />
+            </div>
+            {activePage === 'projects' ? (
+              <button type="button" className="create-project-btn">
+                + Create New Project
+              </button>
+            ) : activePage === 'configuration' ? (
+              <>
+                <button type="button" className="notification-btn" aria-label="Notifications">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <path d="M6 9a6 6 0 1 1 12 0v4l1.6 2.2H4.4L6 13z" />
+                    <path d="M10.5 18a1.5 1.5 0 0 0 3 0" />
+                  </svg>
+                </button>
+                <button type="button" className="apply-changes-btn">
+                  Apply Changes
+                </button>
+              </>
+            ) : (
+              <button type="button" className="notification-btn" aria-label="Notifications">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M15 17H5.5A1.5 1.5 0 0 1 4 15.5v-5A6 6 0 0 1 10 4.6V4a2 2 0 0 1 4 0v.6" />
+                  <path d="M14 12h6" />
+                  <path d="M17 9v6" />
+                </svg>
+              </button>
+            )}
+          </div>
         </header>
         <section className="page-container">{pageContent}</section>
       </main>

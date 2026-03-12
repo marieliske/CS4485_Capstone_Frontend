@@ -1,196 +1,149 @@
-import { useIssues } from '../hooks/useIssues'
-import { formatDate } from '../utils/date'
-import type { Report } from '../types/report'
+const statCards = [
+  { title: 'Total Projects', value: '12', delta: '+2%', tone: 'positive', icon: 'folder' },
+  { title: 'Total Scans', value: '148', delta: '-5%', tone: 'negative', icon: 'search' },
+  { title: 'Open Issues', value: '34', delta: '+12%', tone: 'positive', icon: 'warning' },
+  { title: 'Latest Scan Score', value: '92%', delta: '-1%', tone: 'negative', icon: 'chart' },
+] as const
 
-interface DashboardPageProps {
-  onReviewIssue?: (issueId: string) => void
-  selectedReport: Report | null
-}
+const activityRows = [
+  {
+    title: 'Scan Completed: Core API Reference',
+    subtitle: 'Found 3 outdated endpoints and 1 broken link.',
+    time: '2h ago',
+    tone: 'success',
+  },
+  {
+    title: 'New Issue: Authentication Flow',
+    subtitle: 'Screenshot checksum mismatch detected in v2.4 docs.',
+    time: '5h ago',
+    tone: 'warning',
+  },
+  {
+    title: 'Project Created: Mobile SDK Beta',
+    subtitle: 'Initial scan scheduled for midnight tonight.',
+    time: '1d ago',
+    tone: 'info',
+  },
+  {
+    title: 'Critical Alert: User Guides',
+    subtitle: 'High severity: 12 broken external links identified.',
+    time: '2d ago',
+    tone: 'danger',
+  },
+] as const
 
-function severityFromPriority(priority: 'high' | 'medium' | 'low') {
-  if (priority === 'high') {
-    return { label: 'Critical', className: 'critical' }
+function StatIcon({ type }: { type: (typeof statCards)[number]['icon'] }) {
+  if (type === 'folder') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path d="M3.5 8h6l1.7 2H20v8a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2z" />
+      </svg>
+    )
   }
-  if (priority === 'medium') {
-    return { label: 'Moderate', className: 'moderate' }
+
+  if (type === 'search') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <circle cx="11" cy="11" r="5.5" />
+        <path d="m15 15 5 5" />
+      </svg>
+    )
   }
-  return { label: 'Low', className: 'low' }
-}
 
-export function DashboardPage({ onReviewIssue, selectedReport }: DashboardPageProps) {
-  const { issues, openIssues, scanReport } = useIssues()
-
-  const highPriority = issues.filter((issue) => issue.priority === 'high').length
-  const closedIssues = issues.filter((issue) => issue.status === 'closed').length
-
-  const scanStats = [
-    {
-      label: 'Total Scanned',
-      value: Number.parseInt(scanReport.totalIssues.toString(), 10) * 312,
-      delta: '+5%',
-      deltaClass: 'positive',
-    },
-    { label: 'Added', value: '42', delta: '+2%', deltaClass: 'positive' },
-    { label: 'Removed', value: '12', delta: '-1%', deltaClass: 'negative' },
-    { label: 'Changed', value: '89', delta: '+8%', deltaClass: 'positive' },
-    {
-      label: 'Unchanged',
-      value: Number.parseInt(scanReport.totalIssues.toString(), 10) * 276 + 1,
-      delta: '0%',
-      deltaClass: 'neutral',
-    },
-  ]
-
-  const issueSummary = [
-    { label: 'Detected Issues', value: issues.length },
-    { label: 'Flagged for Review', value: openIssues.length },
-    { label: 'High Severity', value: highPriority },
-    { label: 'Resolved in Docs', value: closedIssues },
-  ]
-
-  const feedRows = issues.map((issue) => {
-    const severityInfo = severityFromPriority(issue.priority)
-    const fileName = issue.codeFile.split('/').pop() || issue.codeFile
-
-    return {
-      id: issue.id,
-      issueNumber: issue.issueNumber,
-      fileName,
-      reason: issue.reason,
-      symbol: issue.symbol,
-      severity: severityInfo.label,
-      severityClass: severityInfo.className,
-      score: issue.cumulativeScore ? `${issue.cumulativeScore}/8` : `${issue.score}/8`,
-      suggestion: issue.suggestion,
-    }
-  })
+  if (type === 'warning') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <circle cx="12" cy="12" r="8" />
+        <path d="M12 8v5" />
+        <path d="M12 16h.01" />
+      </svg>
+    )
+  }
 
   return (
-    <section className="dashboard-screen">
-      <header className="dashboard-intro">
-        <h3>Scan Results</h3>
-        <p>Documentation health overview and recent repository alerts.</p>
-        <div className="dashboard-report-meta">
-          {selectedReport ? (
-            <span>
-              Viewing Report: {selectedReport.name} ({formatDate(selectedReport.createdAt)})
-            </span>
-          ) : null}
-          <span>Repo: {scanReport.repoPath}</span>
-          <span>Commit: {scanReport.commitHash}</span>
-          <span>Time: {new Date(scanReport.scannedAt).toLocaleString()}</span>
-          <span>
-            Issues: {scanReport.totalIssues} total (High: {scanReport.highCount}, Medium:{' '}
-            {scanReport.mediumCount}, Low: {scanReport.lowCount})
-          </span>
-        </div>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M5 19V9" />
+      <path d="M10 19V5" />
+      <path d="M15 19v-7" />
+      <path d="M20 19v-4" />
+    </svg>
+  )
+}
+
+export function DashboardPage() {
+  return (
+    <section className="dashboard-page">
+      <header className="dashboard-welcome">
+        <h2>Welcome back, Team 2</h2>
+        <p>Here's a summary of your documentation health across 12 projects.</p>
       </header>
 
-      <div className="scan-stats-grid">
-        {scanStats.map((stat) => (
-          <article key={stat.label} className="scan-stat-card">
-            <p className="scan-stat-label">{stat.label}</p>
-            <div className="scan-stat-value-row">
-              <strong>{stat.value}</strong>
-              <span className={`scan-stat-delta ${stat.deltaClass}`}>{stat.delta}</span>
+      <div className="dashboard-stats-grid">
+        {statCards.map((card) => (
+          <article key={card.title} className="dashboard-stat-card">
+            <div className="dashboard-stat-top-row">
+              <span className="dashboard-tile-icon" aria-hidden="true">
+                <StatIcon type={card.icon} />
+              </span>
+              <span className={`dashboard-delta-pill ${card.tone}`}>{card.delta}</span>
             </div>
+            <p className="dashboard-stat-title">{card.title}</p>
+            <p className="dashboard-stat-value">{card.value}</p>
           </article>
         ))}
       </div>
 
-      <section className="dashboard-panel">
-        <div className="dashboard-panel-head">
-          <h4>Alert Feed</h4>
-          <div className="dashboard-panel-actions">
-            <button type="button" className="dashboard-small-btn">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M4 5h16l-6 7v5l-4 2v-7z" />
-              </svg>
-              Filter
+      <div className="dashboard-bottom-grid">
+        <section className="dashboard-panel activity-panel">
+          <header className="dashboard-panel-headline">
+            <h3>Recent Activity</h3>
+            <button type="button" className="dashboard-text-link">
+              view all
             </button>
-            <button type="button" className="dashboard-small-btn">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M12 4v10" />
-                <path d="m8 10 4 4 4-4" />
-                <path d="M4 19h16" />
-              </svg>
-              Export
-            </button>
-          </div>
-        </div>
+          </header>
 
-        <div className="dashboard-feed-table-wrap">
-          <table className="dashboard-feed-table">
-            <thead>
-              <tr>
-                <th>Document Filename</th>
-                <th>Reason</th>
-                <th>Symbol</th>
-                <th>Severity</th>
-                <th>Cumulative Score</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {feedRows.map((row) => (
-                <tr
-                  key={row.id}
-                  className="dashboard-feed-row-clickable"
-                  onClick={() => onReviewIssue?.(row.id)}
-                >
-                  <td>
-                    <strong>{row.fileName}</strong>
-                    <p className="dashboard-feed-hint">Issue #{row.issueNumber}</p>
-                  </td>
-                  <td>{row.reason}</td>
-                  <td>{row.symbol}</td>
-                  <td>
-                    <span className={`severity-pill ${row.severityClass}`}>{row.severity}</span>
-                  </td>
-                  <td>{row.score}</td>
-                  <td>
-                    <button
-                      className="review-btn"
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        onReviewIssue?.(row.id)
-                      }}
-                    >
-                      Review Evidence
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+          <ul className="activity-list">
+            {activityRows.map((activity) => (
+              <li key={activity.title} className="activity-row">
+                <span className={`activity-dot ${activity.tone}`} aria-hidden="true" />
+                <div className="activity-copy">
+                  <p>{activity.title}</p>
+                  <small>{activity.subtitle}</small>
+                </div>
+                <span className="activity-time">{activity.time}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
 
-        <div className="dashboard-feed-footer">
-          <span>Showing {feedRows.length} of {scanReport.totalIssues} flagged files</span>
-          <div className="dashboard-pagination">
-            <button type="button" className="pager-btn" disabled>
-              Prev
+        <aside className="dashboard-panel quick-actions-panel">
+          <h3>Quick Actions</h3>
+          <button type="button" className="action-primary-btn">
+            <span>New Scan</span>
+            <span aria-hidden="true">→</span>
+          </button>
+
+          <div className="action-secondary-grid">
+            <button type="button" className="action-secondary-btn">
+              Add Project
             </button>
-            <button type="button" className="pager-btn active">
-              Next
+            <button type="button" className="action-secondary-btn">
+              Reports
             </button>
           </div>
-        </div>
-      </section>
 
-      <section className="dashboard-secondary-metrics">
-        <h4>Issue Summary</h4>
-        <div className="stats-grid">
-          {issueSummary.map((item) => (
-            <article key={item.label} className="card stat-card">
-              <h3 className="card-title">{item.label}</h3>
-              <p className="stat-value">{item.value}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
+          <section className="health-card">
+            <header>
+              <h4>Health Index</h4>
+              <strong>85%</strong>
+            </header>
+            <div className="health-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={85}>
+              <span style={{ width: '85%' }} />
+            </div>
+            <p>"Your documentation is healthier than 78% of teams in your industry."</p>
+          </section>
+        </aside>
+      </div>
     </section>
   )
 }
