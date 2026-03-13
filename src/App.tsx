@@ -4,9 +4,21 @@ import { ProjectsPage } from './pages/ProjectsPage'
 import { IssuesPage } from './pages/IssuesPage'
 import { ScanHistoryPage } from './pages/ScanHistoryPage'
 import { ConfigurationPage } from './pages/ConfigurationPage'
+import { LoginWireframePage } from './pages/LoginWireframePage'
+import { ProjectsEmptyWireframePage } from './pages/ProjectsEmptyWireframePage'
+import { IssueDrawerWireframePage } from './pages/IssueDrawerWireframePage'
+import { UserSettingsWireframePage } from './pages/UserSettingsWireframePage'
 import './App.css'
 
-type PageKey = 'dashboard' | 'projects' | 'issues' | 'history' | 'configuration'
+type PageKey =
+  | 'dashboard'
+  | 'projects'
+  | 'issues'
+  | 'history'
+  | 'configuration'
+  | 'wf-projects-empty'
+  | 'wf-issue-drawer'
+  | 'wf-user-settings'
 
 const pageLabels: Record<PageKey, string> = {
   dashboard: 'Dashboard Overview',
@@ -14,6 +26,9 @@ const pageLabels: Record<PageKey, string> = {
   issues: 'Issues',
   history: 'Scan History',
   configuration: 'Configuration',
+  'wf-projects-empty': 'Projects Empty',
+  'wf-issue-drawer': 'Issue Drawer',
+  'wf-user-settings': 'User Settings',
 }
 
 function NavIcon({ children }: { children: ReactNode }) {
@@ -78,13 +93,50 @@ const navItems: Array<{ key: PageKey; label: string; icon: ReactNode }> = [
       </NavIcon>
     ),
   },
+  {
+    key: 'wf-projects-empty',
+    label: 'Projects Empty',
+    icon: (
+      <NavIcon>
+        <path d="M3.5 7.5h6l2 2h9v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" />
+        <path d="M12 12h.01" />
+      </NavIcon>
+    ),
+  },
+  {
+    key: 'wf-issue-drawer',
+    label: 'Issue Drawer',
+    icon: (
+      <NavIcon>
+        <rect x="4" y="4" width="16" height="16" rx="2" />
+        <path d="M9 8h6M9 12h6M9 16h3" />
+      </NavIcon>
+    ),
+  },
+  {
+    key: 'wf-user-settings',
+    label: 'User Settings',
+    icon: (
+      <NavIcon>
+        <circle cx="12" cy="8" r="3" />
+        <path d="M6 19c1.4-3 3.5-4.5 6-4.5s4.6 1.5 6 4.5" />
+      </NavIcon>
+    ),
+  },
 ]
 
 function App() {
   const [activePage, setActivePage] = useState<PageKey>('dashboard')
+  const [isSignedIn, setIsSignedIn] = useState(false)
 
   const pageContent = useMemo(() => {
     switch (activePage) {
+      case 'wf-projects-empty':
+        return <ProjectsEmptyWireframePage />
+      case 'wf-issue-drawer':
+        return <IssueDrawerWireframePage />
+      case 'wf-user-settings':
+        return <UserSettingsWireframePage />
       case 'projects':
         return <ProjectsPage />
       case 'issues':
@@ -98,6 +150,30 @@ function App() {
         return <DashboardPage />
     }
   }, [activePage])
+
+  if (!isSignedIn) {
+    return (
+      <LoginWireframePage
+        onSignIn={() => {
+          setActivePage('dashboard')
+          setIsSignedIn(true)
+        }}
+      />
+    )
+  }
+
+  const topbarSearchValue =
+    activePage === 'projects'
+      ? 'Quick search...'
+      : activePage === 'configuration'
+        ? 'Search config...'
+        : activePage === 'wf-projects-empty'
+          ? 'Search empty state...'
+          : activePage === 'wf-issue-drawer'
+            ? 'Search issue drawer...'
+            : activePage === 'wf-user-settings'
+              ? 'Search user settings...'
+              : 'Search documentation...'
 
   return (
     <div className="app-shell">
@@ -155,20 +231,20 @@ function App() {
               </svg>
               <input
                 type="text"
-                value={
-                  activePage === 'projects'
-                    ? 'Quick search...'
-                    : activePage === 'configuration'
-                      ? 'Search config...'
-                      : 'Search documentation...'
-                }
+                value={topbarSearchValue}
                 readOnly
                 aria-label={
                   activePage === 'projects'
                     ? 'Quick search'
                     : activePage === 'configuration'
                       ? 'Search configuration'
-                      : 'Search documentation'
+                      : activePage === 'wf-projects-empty'
+                        ? 'Search projects empty state'
+                        : activePage === 'wf-issue-drawer'
+                          ? 'Search issue drawer'
+                          : activePage === 'wf-user-settings'
+                            ? 'Search user settings'
+                            : 'Search documentation'
                 }
               />
             </div>
