@@ -1,10 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getFingerprintSummary, getScanIssues, getScans, type ScanRecord } from '../api/scans'
-
-const FALLBACK_POLL_INTERVAL_MS = 10_000
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '/api'
-const SCAN_EVENTS_PATH = import.meta.env.VITE_SCAN_EVENTS_PATH ?? '/events/scans'
-const DOCROT_TOKEN = import.meta.env.VITE_DOCROT_TOKEN
+import { useScanEvents } from '../hooks/useScanEvents'
 
 type StatCardTone = 'positive' | 'negative'
 type ActivityTone = 'success' | 'warning' | 'info' | 'danger'
@@ -16,24 +12,21 @@ interface DashboardActivity {
   tone: ActivityTone
 }
 
-function buildScanEventsUrl(apiBase: string, path: string, token?: string, lastId?: string): string {
-  const normalizedBase = apiBase.endsWith('/') ? apiBase.slice(0, -1) : apiBase
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`
-  const url = new URL(`${normalizedBase}${normalizedPath}`, window.location.origin)
-
-  if (token && !url.searchParams.has('token')) {
-    url.searchParams.set('token', token)
-  }
-
-  if (lastId && !url.searchParams.has('last_id')) {
-    url.searchParams.set('last_id', lastId)
-  }
-
-  return url.toString()
-}
-
 function asFiniteNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function parseScanId(value?: string): number {
+  if (!value) {
+    return 0
+  }
+
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) {
+    return 0
+  }
+
+  return Math.max(0, Math.floor(parsed))
 }
 
 function pickNumber(source: Record<string, unknown>, keys: string[]): number | null {
@@ -117,147 +110,62 @@ export function DashboardPage() {
   const [scans, setScans] = useState<ScanRecord[]>([])
   const [openIssues, setOpenIssues] = useState(0)
   const [healthIndex, setHealthIndex] = useState<number | null>(null)
+  const [lastSeenId, setLastSeenId] = useState(0)
+  const [initialized, setInitialized] = useState(false)
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [streamConnected, setStreamConnected] = useState(false)
 
-  useEffect(() => {
-    let mounted = true
-    let fallbackTimer: number | null = null
-    let eventSource: EventSource | null = null
-
-    const clearFallbackPoller = () => {
-      if (fallbackTimer !== null) {
-        window.clearInterval(fallbackTimer)
-        fallbackTimer = null
-      }
+  const loadDashboard = useCallback(async (showLoading = true) => {
+    if (showLoading) {
+      setLoading(true)
     }
 
-    const startFallbackPoller = () => {
-      if (fallbackTimer !== null) {
-        return
+    try {
+      const [scanRows, summary] = await Promise.all([
+        getScans(),
+        getFingerprintSummary().catch(() => ({} as Record<string, unknown>)),
+      ])
+
+      const latestScanId = scanRows[0]?.id
+      let latestOpenIssueCount = 0
+
+      if (latestScanId) {
+        const latestIssues = await getScanIssues(latestScanId)
+        latestOpenIssueCount = latestIssues.filter((issue) => {
+          const status = (issue as Record<string, unknown>).status
+          return status !== 'closed'
+        }).length
       }
 
-      fallbackTimer = window.setInterval(() => {
-        void loadDashboard(false)
-      }, FALLBACK_POLL_INTERVAL_MS)
-    }
+      const summaryObject = summary as Record<string, unknown>
+      const fallbackIssueCount = pickNumber(summaryObject, ['open_issues', 'openIssues', 'issue_count', 'total_issues'])
+      const summaryHealth = pickNumber(summaryObject, ['health_index', 'healthIndex', 'score', 'rot_score'])
+      const latestScanHealth = asFiniteNumber(scanRows[0]?.rot_score)
 
-    const loadDashboard = async (showLoading = true): Promise<string | undefined> => {
-      if (showLoading) {
-        setLoading(true)
-      }
-
-      try {
-        const [scanRows, summary] = await Promise.all([
-          getScans(),
-          getFingerprintSummary().catch(() => ({} as Record<string, unknown>)),
-        ])
-
-        const latestScanId = scanRows[0]?.id
-        let latestOpenIssueCount = 0
-
-        if (latestScanId) {
-          const latestIssues = await getScanIssues(latestScanId)
-          latestOpenIssueCount = latestIssues.filter((issue) => {
-            const status = (issue as Record<string, unknown>).status
-            return status !== 'closed'
-          }).length
-        }
-
-        const summaryObject = summary as Record<string, unknown>
-        const fallbackIssueCount = pickNumber(summaryObject, ['open_issues', 'openIssues', 'issue_count', 'total_issues'])
-        const summaryHealth = pickNumber(summaryObject, ['health_index', 'healthIndex', 'score', 'rot_score'])
-        const latestScanHealth = asFiniteNumber(scanRows[0]?.rot_score)
-
-        if (!mounted) {
-          return
-        }
-
-        setScans(scanRows)
-        setOpenIssues(latestOpenIssueCount || fallbackIssueCount || 0)
-        setHealthIndex(latestScanHealth ?? summaryHealth)
-        setLastUpdatedAt(new Date())
-        setError(null)
-        return latestScanId
-      } catch (err) {
-        if (!mounted) {
-          return
-        }
-        setError(err instanceof Error ? err.message : 'Unable to load dashboard data.')
-      } finally {
-        if (mounted) {
-          setLoading(false)
-        }
-      }
-    }
-
-    const init = async () => {
-      const latestScanId = await loadDashboard()
-
-      const configuredScanEventsPath = typeof SCAN_EVENTS_PATH === 'string' ? SCAN_EVENTS_PATH.trim() : ''
-      if (configuredScanEventsPath.length > 0) {
-        const streamUrl = buildScanEventsUrl(API_BASE, configuredScanEventsPath, DOCROT_TOKEN, latestScanId)
-        eventSource = new EventSource(streamUrl)
-
-        eventSource.onopen = () => {
-          if (!mounted) {
-            return
-          }
-          setStreamConnected(true)
-          clearFallbackPoller()
-        }
-
-        eventSource.addEventListener('scan_added', (evt) => {
-          try {
-            const payload = JSON.parse((evt as MessageEvent).data) as Record<string, unknown>
-            if (payload && typeof payload.scan_id !== 'undefined') {
-              setLastUpdatedAt(new Date())
-            }
-          } catch {
-            // Ignore event payload parse failures and still refresh dashboard data.
-          }
-
-          void loadDashboard(false)
-        })
-
-        eventSource.addEventListener('connected', () => {
-          if (!mounted) {
-            return
-          }
-          setStreamConnected(true)
-        })
-
-        eventSource.onmessage = () => {
-          void loadDashboard(false)
-        }
-
-        eventSource.onerror = () => {
-          if (!mounted) {
-            return
-          }
-
-          // Prevent endless reconnect loops (and backend log spam) when stream auth fails.
-          eventSource?.close()
-          eventSource = null
-          setStreamConnected(false)
-          startFallbackPoller()
-        }
-      } else {
-        setStreamConnected(false)
-        startFallbackPoller()
-      }
-    }
-
-    void init()
-
-    return () => {
-      mounted = false
-      eventSource?.close()
-      clearFallbackPoller()
+      setScans(scanRows)
+      setOpenIssues(latestOpenIssueCount || fallbackIssueCount || 0)
+      setHealthIndex(latestScanHealth ?? summaryHealth)
+      setLastSeenId(parseScanId(latestScanId))
+      setLastUpdatedAt(new Date())
+      setError(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load dashboard data.')
+    } finally {
+      setLoading(false)
+      setInitialized(true)
     }
   }, [])
+
+  useEffect(() => {
+    void loadDashboard(true)
+  }, [loadDashboard])
+
+  const handleScanAdded = useCallback(() => {
+    void loadDashboard(false)
+  }, [loadDashboard])
+
+  const { isConnected: streamConnected } = useScanEvents(handleScanAdded, lastSeenId, initialized)
 
   const statCards = useMemo(
     () => [
