@@ -297,6 +297,39 @@
   margin-top: 4px;
 }
 
+.dashboard-live-meta {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.dashboard-live-pill {
+  background: rgba(25, 181, 135, 0.2);
+  border: 1px solid rgba(35, 198, 148, 0.45);
+  border-radius: 999px;
+  color: #7ce3c3;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 8px;
+}
+
+.dashboard-live-pill.loading {
+  background: rgba(212, 162, 41, 0.2);
+  border-color: rgba(224, 176, 61, 0.45);
+  color: #ffd27c;
+}
+
+.dashboard-live-meta small {
+  color: var(--text-dim);
+  font-size: 0.78rem;
+}
+
+.dashboard-live-meta .dashboard-error-text {
+  color: #f0a8ba;
+}
+
 .dashboard-stats-grid {
   display: grid;
   gap: 16px;
