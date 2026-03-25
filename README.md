@@ -1,5 +1,65 @@
 # Docrot Detector Frontend
 
+## Quick Start (Setup + Run)
+
+Use this flow each time you start local development.
+
+1. Start the backend API first (scanner repo)
+
+```powershell
+cd C:/Users/Richard/CS4485_Capstone
+start_api.ps1 -Port 8011 -Token TOKEN_HERE
+```
+
+2. Verify backend health
+
+Open:
+
+http://127.0.0.1:8011/api/health
+
+3. Configure frontend environment (this repo)
+
+Create a local .env file from .env.example and set values:
+
+```env
+VITE_BACKEND_ORIGIN=http://127.0.0.1:8011
+VITE_API_BASE_URL=/api
+VITE_DOCROT_TOKEN=TOKEN_HERE
+VITE_SCAN_EVENTS_PATH=/events/scans
+```
+
+Notes:
+
+- .env is ignored by git and should contain real local values.
+- .env.example is committed and should only contain placeholders.
+
+4. Install and run frontend
+
+```powershell
+npm install
+npm run dev
+```
+
+Open the URL shown by Vite (usually http://localhost:5173 or http://localhost:5174).
+
+5. Real-time dashboard updates
+
+- Frontend keeps one Server-Sent Events stream open at /api/events/scans.
+- On each scan_added event, dashboard data is re-fetched automatically.
+- If the stream is unavailable, frontend falls back to polling.
+
+6. If no data appears
+
+- Confirm backend and frontend token values match exactly.
+- Confirm VITE_BACKEND_ORIGIN points to the port your backend is actually running on.
+- In scanner repo, verify DB content:
+
+```powershell
+python.exe check_db.py
+```
+
+---
+
 ## Overview
 
 Docrot Detector Frontend is the user interface for the **Docrot Detector system**, a tool that detects when Python code changes in semantically meaningful ways and flags linked documentation for review.
