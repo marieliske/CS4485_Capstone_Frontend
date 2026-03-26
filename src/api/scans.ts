@@ -31,6 +31,19 @@ function toNumberValue(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
 }
 
+function normalizeScoreValue(value: unknown): number | undefined {
+  const parsed = toNumberValue(value)
+  if (parsed === undefined) {
+    return undefined
+  }
+
+  if (parsed >= 0 && parsed <= 1) {
+    return parsed * 100
+  }
+
+  return parsed
+}
+
 function toScanRecord(payload: unknown): ScanRecord {
   const obj = asObject(payload)
   return {
@@ -38,7 +51,7 @@ function toScanRecord(payload: unknown): ScanRecord {
     repo_path: toStringValue(obj.repo_path),
     commit_sha: toStringValue(obj.commit_sha),
     status: toStringValue(obj.status),
-    rot_score: toNumberValue(obj.rot_score),
+    rot_score: normalizeScoreValue(obj.rot_score),
     mismatch_count: toNumberValue(obj.mismatch_count),
     created_at: toStringValue(obj.created_at),
     updated_at: toStringValue(obj.updated_at),
@@ -79,8 +92,13 @@ export async function getScanById(scanId: string): Promise<ScanRecord> {
 }
 
 export async function getScanIssues(scanId: string): Promise<ScanIssueRecord[]> {
-  const payload = await apiRequest<unknown>(`/scans/${encodeURIComponent(scanId)}/issues`)
-  return pickArrayFromEnvelope<ScanIssueRecord>(payload, 'issues')
+  try {
+    const payload = await apiRequest<unknown>(`/scans/${encodeURIComponent(scanId)}/issues`)
+    return pickArrayFromEnvelope<ScanIssueRecord>(payload, 'issues')
+  } catch {
+    const payload = await apiRequest<unknown>(`/scans/${encodeURIComponent(scanId)}/mismatches`)
+    return pickArrayFromEnvelope<ScanIssueRecord>(payload, 'mismatches')
+  }
 }
 
 export async function getScanDocs(scanId: string): Promise<ScanDocRecord[]> {

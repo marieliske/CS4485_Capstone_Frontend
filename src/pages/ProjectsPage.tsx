@@ -1,71 +1,187 @@
-const statCards = [
-  { label: 'Total Projects', value: '24', warning: false },
-  { label: 'Active Alerts', value: '12', warning: true },
-  { label: 'Mean Rot Score', value: '32', warning: false },
-  { label: 'Last Update', value: '2m ago', warning: false },
-] as const
+import { useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { getScans, type ScanRecord } from '../api/scans'
 
-const projectRows = [
-  {
-    name: 'API Gateway',
-    repository: 'github.com/org/api-gw',
-    language: 'GO',
-    languageTone: 'go',
-    status: 'Healthy',
-    statusTone: 'healthy',
-    score: '12',
-    scoreWidth: '16%',
-    scoreTone: 'healthy',
-  },
-  {
-    name: 'Frontend Core',
-    repository: 'github.com/org/ui-kit',
-    language: 'TYPESCRIPT',
-    languageTone: 'typescript',
-    status: 'Degrading',
-    statusTone: 'degrading',
-    score: '48',
-    scoreWidth: '48%',
-    scoreTone: 'degrading',
-  },
-  {
-    name: 'Data Analytics',
-    repository: 'github.com/org/data-v2',
-    language: 'PYTHON',
-    languageTone: 'python',
-    status: 'Critical',
-    statusTone: 'critical',
-    score: '82',
-    scoreWidth: '82%',
-    scoreTone: 'critical',
-  },
-  {
-    name: 'Auth Service',
-    repository: 'github.com/org/identity',
-    language: 'RUST',
-    languageTone: 'rust',
-    status: 'Healthy',
-    statusTone: 'healthy',
-    score: '05',
-    scoreWidth: '5%',
-    scoreTone: 'healthy',
-  },
-  {
-    name: 'Payment Bridge',
-    repository: 'github.com/org/payments',
-    language: 'JAVA',
-    languageTone: 'java',
-    status: 'Untracked',
-    statusTone: 'untracked',
-    score: 'N/A',
-    scoreWidth: '0%',
-    scoreTone: 'untracked',
-  },
-] as const
+interface ProjectsPageProps {
+  onInspectProject?: (scanId?: string) => void
+}
 
-const filters = ['All Projects', 'Language: All', 'Status', 'Score: High to Low'] as const
+interface ProjectRow {
+  name: string
+  repository: string
+  latestScanId?: string
+  latestStatus: string
+  statusTone: 'healthy' | 'degrading' | 'critical' | 'untracked'
+  score: number
+  scoreWidth: string
+  scoreTone: 'healthy' | 'degrading' | 'critical' | 'untracked'
+  latestMismatchCount: number
+  scanCount: number
+  lastUpdated: string
+}
 
-export function ProjectsPage() {
+function clampScore(value?: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return 0
+  }
+
+  return Math.max(0, Math.min(100, Math.round(value)))
+}
+
+function projectName(repository: string): string {
+  const normalized = repository.replace(/\\/g, '/')
+  const parts = normalized.split('/').filter(Boolean)
+  return parts[parts.length - 1] ?? repository
+}
+
+function formatRelativeTime(value?: string): string {
+  if (!value) {
+    return 'Not available'
+  }
+
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return value
+  }
+
+  const seconds = Math.max(0, Math.round((Date.now() - parsed.getTime()) / 1000))
+  if (seconds < 60) {
+    return `${seconds}s ago`
+  }
+
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) {
+    return `${minutes}m ago`
+  }
+
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) {
+    return `${hours}h ago`
+  }
+
+  return `${Math.floor(hours / 24)}d ago`
+}
+
+function toProjectRow(repository: string, scans: ScanRecord[]): ProjectRow {
+  const sortedScans = [...scans].sort((left, right) => {
+    const leftTime = Date.parse(left.created_at ?? '')
+    const rightTime = Date.parse(right.created_at ?? '')
+    return rightTime - leftTime
+  })
+
+  const latestScan = sortedScans[0]
+  const averageScore =
+    sortedScans.length === 0
+      ? 0
+      : Math.round(sortedScans.reduce((sum, scan) => sum + clampScore(scan.rot_score), 0) / sortedScans.length)
+
+  let statusTone: ProjectRow['statusTone'] = 'healthy'
+  if (!latestScan) {
+    statusTone = 'untracked'
+  } else if (latestScan.status === 'failed' || averageScore < 50) {
+    statusTone = 'critical'
+  } else if ((latestScan.mismatch_count ?? 0) > 0 || averageScore < 80) {
+    statusTone = 'degrading'
+  }
+
+  return {
+    name: projectName(repository),
+    repository,
+    latestScanId: latestScan?.id,
+    latestStatus: latestScan?.status ?? 'untracked',
+    statusTone,
+    score: averageScore,
+    scoreWidth: `${averageScore}%`,
+    scoreTone: statusTone,
+    latestMismatchCount: latestScan?.mismatch_count ?? 0,
+    scanCount: sortedScans.length,
+    lastUpdated: latestScan?.created_at ?? '',
+  }
+}
+
+export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
+  const [scans, setScans] = useState<ScanRecord[]>([])
+  const [query, setQuery] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const deferredQuery = useDeferredValue(query)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadProjects() {
+      try {
+        const liveScans = await getScans()
+        if (!cancelled) {
+          setScans(liveScans)
+          setError(liveScans.length === 0 ? 'No backend projects are available until scans are recorded.' : null)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setScans([])
+          setError(err instanceof Error ? err.message : 'Unable to load projects from the backend.')
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void loadProjects()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const projectRows = useMemo(() => {
+    const grouped = new Map<string, ScanRecord[]>()
+
+    for (const scan of scans) {
+      const repository = scan.repo_path ?? 'unknown-project'
+      const existing = grouped.get(repository) ?? []
+      existing.push(scan)
+      grouped.set(repository, existing)
+    }
+
+    return [...grouped.entries()]
+      .map(([repository, groupedScans]) => toProjectRow(repository, groupedScans))
+      .sort((left, right) => left.name.localeCompare(right.name))
+  }, [scans])
+
+  const filteredRows = useMemo(() => {
+    const normalizedQuery = deferredQuery.trim().toLowerCase()
+    if (!normalizedQuery) {
+      return projectRows
+    }
+
+    return projectRows.filter((project) =>
+      [project.name, project.repository, project.latestStatus].some((value) =>
+        value.toLowerCase().includes(normalizedQuery),
+      ),
+    )
+  }, [deferredQuery, projectRows])
+
+  const latestUpdated = projectRows
+    .map((project) => project.lastUpdated)
+    .filter((value) => value.length > 0)
+    .sort()
+    .at(-1)
+
+  const projectsWithAlerts = projectRows.filter((project) => project.latestMismatchCount > 0).length
+  const meanRotScore =
+    projectRows.length === 0
+      ? 0
+      : Math.round(projectRows.reduce((sum, project) => sum + project.score, 0) / projectRows.length)
+
+  const statCards = [
+    { label: 'Total Projects', value: `${projectRows.length}`, warning: false },
+    { label: 'Active Alerts', value: `${projectsWithAlerts}`, warning: projectsWithAlerts > 0 },
+    { label: 'Mean Rot Score', value: `${meanRotScore}%`, warning: meanRotScore < 60 },
+    { label: 'Last Update', value: latestUpdated ? formatRelativeTime(latestUpdated) : 'No scans', warning: false },
+  ] as const
+
   return (
     <section className="projects-page">
       <div className="projects-stats-grid">
@@ -78,77 +194,79 @@ export function ProjectsPage() {
       </div>
 
       <div className="projects-filter-row">
-        {filters.map((filter) => (
-          <button key={filter} type="button" className="projects-filter-btn">
-            {filter}
-            <span className="filter-chevron" aria-hidden="true">
-              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="m2.5 4.5 3.5 3 3.5-3" />
-              </svg>
-            </span>
-          </button>
-        ))}
+        <input
+          aria-label="Search projects"
+          className="scan-history-search-input"
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search project or repository path"
+          value={query}
+        />
+        <span className="projects-filter-btn">Showing {filteredRows.length} projects</span>
       </div>
 
       <section className="projects-table-shell">
-        <table className="projects-table">
-          <thead>
-            <tr>
-              <th>Project Name</th>
-              <th>Repository</th>
-              <th>Language</th>
-              <th>Status</th>
-              <th>Rot Score</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {projectRows.map((project) => (
-              <tr key={project.name}>
-                <td className="project-name-cell">{project.name}</td>
-                <td className="project-repo-cell">{project.repository}</td>
-                <td>
-                  <span className={`project-lang-pill ${project.languageTone}`}>{project.language}</span>
-                </td>
-                <td>
-                  <span className={`project-status ${project.statusTone}`}>
-                    <span className="status-dot" aria-hidden="true" />
-                    {project.status}
-                  </span>
-                </td>
-                <td>
-                  <div className="rot-score-cell">
-                    <div className="rot-track">
-                      <span className={project.scoreTone} style={{ width: project.scoreWidth }} />
-                    </div>
-                    <strong>{project.score}</strong>
-                  </div>
-                </td>
-                <td>
-                  <button type="button" className="project-actions-btn" aria-label={`Actions for ${project.name}`}>
-                    ⋮
-                  </button>
-                </td>
+        {loading ? (
+          <div className="page-placeholder">Loading projects from backend scan data…</div>
+        ) : filteredRows.length === 0 ? (
+          <div className="page-placeholder">{error ?? 'No projects match your search.'}</div>
+        ) : (
+          <table className="projects-table">
+            <thead>
+              <tr>
+                <th>Project Name</th>
+                <th>Repository</th>
+                <th>Latest Status</th>
+                <th>Latest Scan</th>
+                <th>Rot Score</th>
+                <th>Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filteredRows.map((project) => (
+                <tr key={project.repository}>
+                  <td className="project-name-cell">{project.name}</td>
+                  <td className="project-repo-cell">{project.repository}</td>
+                  <td>
+                    <span className={`project-status ${project.statusTone}`}>
+                      <span className="status-dot" aria-hidden="true" />
+                      {project.latestStatus}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="project-scan-cell">
+                      <strong>{project.latestScanId ?? 'Unavailable'}</strong>
+                      <small>
+                        {project.scanCount} scan{project.scanCount === 1 ? '' : 's'} • {project.latestMismatchCount} mismatch
+                        {project.latestMismatchCount === 1 ? '' : 'es'}
+                      </small>
+                    </div>
+                  </td>
+                  <td>
+                    <div className="rot-score-cell">
+                      <div className="rot-track">
+                        <span className={project.scoreTone} style={{ width: project.scoreWidth }} />
+                      </div>
+                      <strong>{project.score}%</strong>
+                    </div>
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      disabled={!project.latestScanId}
+                      onClick={() => onInspectProject?.(project.latestScanId)}
+                    >
+                      Inspect
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
 
         <footer className="projects-table-footer">
-          <span>Showing 5 of 24 projects</span>
-          <div className="projects-pagination">
-            <button type="button" aria-label="Previous page">
-              ‹
-            </button>
-            <button type="button" className="active" aria-current="page">
-              1
-            </button>
-            <button type="button">2</button>
-            <button type="button">3</button>
-            <button type="button" aria-label="Next page">
-              ›
-            </button>
-          </div>
+          <span>Showing {filteredRows.length} of {projectRows.length} projects</span>
         </footer>
       </section>
     </section>

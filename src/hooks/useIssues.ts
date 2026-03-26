@@ -1,17 +1,19 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { getIssues } from '../api/issues'
+import { getScans } from '../api/scans'
 import type { Issue, ScanReportSummary } from '../types/issue'
 
-const scanReport: ScanReportSummary = {
-  repoPath: 'C:\\Users\\Richard\\CS4485_Capstone',
-  commitHash: 'unknown',
+const fallbackScanReport: ScanReportSummary = {
+  repoPath: 'sample/docrot-detector',
+  commitHash: 'sample-commit',
   scannedAt: '2026-02-26T19:39:30.859618',
-  totalIssues: 4,
-  highCount: 3,
-  mediumCount: 1,
+  totalIssues: 0,
+  highCount: 0,
+  mediumCount: 0,
   lowCount: 0,
 }
 
-const mockIssues: Issue[] = [
+const fallbackIssues: Issue[] = [
   {
     id: 'DOC-201',
     issueNumber: 1,
@@ -42,79 +44,102 @@ const mockIssues: Issue[] = [
     title: 'Architecture.md is flagged from linked code drift',
     description: 'Documentation file was flagged due to cumulative code behavior changes.',
     mismatchType: 'removed-api-reference',
-    codeElement: 'Architecture.md',
-    sourcePath: 'Architecture.md',
-    docPath: 'Architecture.md',
-    docSection: 'File-level reference',
-    status: 'open',
-    priority: 'high',
-    reason: 'docstring_stale',
-    symbol: 'Architecture.md',
-    codeFile: 'Architecture.md',
-    detectorTag: 'doc_file_flagged',
-    score: 16,
-    cumulativeScore: 16,
-    changeSummary:
-      'literal/constant changed, branch condition changed, loop behavior changed, core control path added/removed',
-    suggestion: "Review 'Architecture.md' - linked code logic has changed.",
-    createdAt: '2026-02-26T19:39:30.859618',
-    updatedAt: '2026-02-26T19:39:30.859618',
-  },
-  {
-    id: 'DOC-203',
-    issueNumber: 3,
-    title: 'README file flagged from cumulative linked changes',
-    description: 'Main README includes references impacted by code-path changes.',
-    mismatchType: 'example-outdated',
-    codeElement: 'Readme.md',
-    sourcePath: 'Readme.md',
-    docPath: 'Readme.md',
-    docSection: 'File-level reference',
-    status: 'open',
-    priority: 'high',
-    reason: 'docstring_stale',
-    symbol: 'Readme.md',
-    codeFile: 'Readme.md',
-    detectorTag: 'doc_file_flagged',
-    score: 16,
-    cumulativeScore: 16,
-    changeSummary:
-      'literal/constant changed, branch condition changed, loop behavior changed, core control path added/removed',
-    suggestion: "Review 'Readme.md' - linked code logic has changed.",
-    createdAt: '2026-02-26T19:39:30.859618',
-    updatedAt: '2026-02-26T19:39:30.859618',
-  },
-  {
-    id: 'DOC-204',
-    issueNumber: 4,
-    title: '_scan_repo function changed while docs lag behind',
-    description: 'Function internals changed and docstring details are now outdated.',
-    mismatchType: 'parameter-drift',
-    codeElement: 'src/run.py::_scan_repo',
+    codeElement: 'docs/Architecture.md',
     sourcePath: 'src/run.py',
-    docPath: 'src/run.py',
-    docSection: '_scan_repo',
-    status: 'in-progress',
-    priority: 'medium',
-    reason: 'docstring_stale',
-    symbol: 'src/run.py::_scan_repo',
+    docPath: 'docs/Architecture.md',
+    docSection: 'File-level reference',
+    status: 'open',
+    priority: 'high',
+    reason: 'doc_file_flagged',
+    symbol: 'docs/Architecture.md',
     codeFile: 'src/run.py',
-    signature:
-      "_scan_repo(repo_path, py_files) -> Subscript(value=Name(id='tuple', ctx=Load()), slice=Tuple(elts=[Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Subscript(value=Name(id='Dict', ctx=Load()), slice=Tuple(elts=[Name(id='str', ctx=Load()), Name(id='FunctionFingerprint', ctx=Load())], ctx=Load()), ctx=Load())], ctx=Load()), ctx=Load()), Subscript(value=Name(id='List', ctx=Load()), slice=Name(id='str', ctx=Load()), ctx=Load())], ctx=Load()), ctx=Load())",
-    detectorTag: 'docstring_stale',
-    score: 1,
-    changeSummary: 'literal/constant changed',
-    suggestion: "Review documentation for 'src/run.py::_scan_repo' - logic may have changed.",
+    detectorTag: 'doc_file_flagged',
+    score: 16,
+    cumulativeScore: 16,
+    changeSummary:
+      'literal/constant changed, branch condition changed, loop behavior changed, core control path added/removed',
+    suggestion: "Review 'docs/Architecture.md' - linked code logic has changed.",
     createdAt: '2026-02-26T19:39:30.859618',
     updatedAt: '2026-02-26T19:39:30.859618',
   },
 ]
 
-export function useIssues() {
-  const [issues] = useState<Issue[]>(mockIssues)
+function buildSummary(issues: Issue[], repoPath?: string, commitHash?: string, scannedAt?: string): ScanReportSummary {
+  const highCount = issues.filter((issue) => issue.priority === 'high').length
+  const mediumCount = issues.filter((issue) => issue.priority === 'medium').length
+  const lowCount = issues.filter((issue) => issue.priority === 'low').length
 
-  const loading = false
-  const error: string | null = null
+  return {
+    repoPath: repoPath ?? fallbackScanReport.repoPath,
+    commitHash: commitHash ?? fallbackScanReport.commitHash,
+    scannedAt: scannedAt ?? fallbackScanReport.scannedAt,
+    totalIssues: issues.length,
+    highCount,
+    mediumCount,
+    lowCount,
+  }
+}
+
+export function useIssues(scanId?: string | null) {
+  const [issues, setIssues] = useState<Issue[]>([])
+  const [scanReport, setScanReport] = useState<ScanReportSummary>(fallbackScanReport)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadIssues() {
+      try {
+        const [liveIssues, scans] = await Promise.all([
+          getIssues(scanId ?? undefined),
+          getScans().catch(() => []),
+        ])
+
+        if (cancelled) {
+          return
+        }
+
+        const selectedScan = scanId ? scans.find((scan) => scan.id === scanId) : scans[0]
+        const hasLiveData = liveIssues.length > 0 || Boolean(selectedScan)
+
+        if (hasLiveData) {
+          setIssues(liveIssues)
+          setScanReport(
+            buildSummary(
+              liveIssues,
+              selectedScan?.repo_path,
+              selectedScan?.commit_sha,
+              selectedScan?.created_at,
+            ),
+          )
+          setError(null)
+        } else {
+          setIssues(fallbackIssues)
+          setScanReport(buildSummary(fallbackIssues))
+          setError('No backend issues were returned yet, so sample data is shown.')
+        }
+      } catch (err) {
+        if (cancelled) {
+          return
+        }
+
+        setIssues(fallbackIssues)
+        setScanReport(buildSummary(fallbackIssues))
+        setError(err instanceof Error ? `${err.message} Showing sample data instead.` : 'Showing sample data instead.')
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void loadIssues()
+
+    return () => {
+      cancelled = true
+    }
+  }, [scanId])
 
   const openIssues = useMemo(() => issues.filter((issue) => issue.status !== 'closed'), [issues])
 
