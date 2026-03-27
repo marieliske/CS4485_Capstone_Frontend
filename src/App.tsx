@@ -4,6 +4,8 @@ import { ProjectsPage } from './pages/ProjectsPage'
 import { IssuesPage } from './pages/IssuesPage'
 import { ScanHistoryPage } from './pages/ScanHistoryPage'
 import { ConfigurationPage } from './pages/ConfigurationPage'
+import { LoginPage } from './pages/LoginPage'
+import { AuthProvider, useAuth } from './auth/AuthContext'
 import './App.css'
 
 type PageKey = 'dashboard' | 'projects' | 'issues' | 'history' | 'configuration'
@@ -80,7 +82,8 @@ const navItems: Array<{ key: PageKey; label: string; icon: ReactNode }> = [
   },
 ]
 
-function App() {
+function AppShell() {
+  const { user, logout } = useAuth()
   const [activePage, setActivePage] = useState<PageKey>('dashboard')
 
   const pageContent = useMemo(() => {
@@ -132,12 +135,19 @@ function App() {
 
         <div className="app-sidebar-footer">
           <div className="user-row">
-            <span className="avatar" aria-hidden="true" />
+            {user?.avatar_url ? (
+              <img src={user.avatar_url} alt={user.login} className="avatar" width="32" height="32" />
+            ) : (
+              <span className="avatar" aria-hidden="true" />
+            )}
             <div>
-              <p>Alex Chen</p>
-              <small>Pro Plan</small>
+              <p>{user?.name || user?.login || 'Unknown'}</p>
+              <small>{user?.login}</small>
             </div>
           </div>
+          <button type="button" className="logout-btn" onClick={logout}>
+            Sign out
+          </button>
         </div>
       </aside>
 
@@ -205,4 +215,15 @@ function App() {
   )
 }
 
-export default App
+function App() {
+  const { token } = useAuth()
+  return token ? <AppShell /> : <LoginPage />
+}
+
+export default function Root() {
+  return (
+    <AuthProvider>
+      <App />
+    </AuthProvider>
+  )
+}
