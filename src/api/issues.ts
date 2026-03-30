@@ -1,28 +1,57 @@
+import { asObject } from './client'
 import { getScans, getScanIssues } from './scans'
 import type { Issue } from '../types/issue'
 
 function parsePriority(value: unknown): Issue['priority'] {
-  if (value === 'high' || value === 'medium' || value === 'low') {
-    return value
+  if (value === 'critical' || value === 'high') {
+    return 'high'
   }
-  return 'medium'
+
+  if (value === 'medium') {
+    return 'medium'
+  }
+
+  return 'low'
 }
 
 function parseStatus(value: unknown): Issue['status'] {
-  if (value === 'open' || value === 'in-progress' || value === 'closed') {
-    return value
+  if (value === 'closed' || value === 'resolved' || value === 'ignored') {
+    return 'closed'
   }
+
+  if (value === 'in-progress' || value === 'in_progress' || value === 'reviewing') {
+    return 'in-progress'
+  }
+
   return 'open'
 }
 
 function parseMismatchType(value: unknown): Issue['mismatchType'] {
-  if (
-    value === 'signature-mismatch' ||
-    value === 'removed-api-reference' ||
-    value === 'parameter-drift' ||
-    value === 'example-outdated'
-  ) {
-    return value
+  if (value === 'signature-mismatch') {
+    return 'signature-mismatch'
+  }
+
+  if (value === 'removed-api-reference') {
+    return 'removed-api-reference'
+  }
+
+  if (value === 'parameter-drift') {
+    return 'parameter-drift'
+  }
+
+  return 'example-outdated'
+}
+
+function inferMismatchType(value: unknown): Issue['mismatchType'] {
+  const normalized = typeof value === 'string' ? value.toLowerCase() : ''
+  if (normalized.includes('signature')) {
+    return 'signature-mismatch'
+  }
+  if (normalized.includes('parameter')) {
+    return 'parameter-drift'
+  }
+  if (normalized.includes('removed') || normalized.includes('missing') || normalized.includes('broken')) {
+    return 'removed-api-reference'
   }
   return 'example-outdated'
 }
@@ -35,61 +64,95 @@ function toNumberValue(value: unknown, fallback = 0): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
 }
 
-function normalizeIssue(raw: Record<string, unknown>, index: number, scanId: string): Issue {
-  const rawId = toStringValue(raw.id, '')
-  const id = rawId.length > 0 ? rawId : `${scanId}-issue-${index + 1}`
-  const title = toStringValue(raw.title, toStringValue(raw.message, `Issue ${index + 1}`))
-  const description = toStringValue(raw.description, toStringValue(raw.message, 'Documentation mismatch detected.'))
-  const sourcePath = toStringValue(raw.sourcePath, toStringValue(raw.code_path, 'unknown'))
-  const docPath = toStringValue(raw.docPath, toStringValue(raw.doc_path, 'unknown'))
-  const docSection = toStringValue(raw.docSection, toStringValue(raw.reference, 'general'))
-  const symbol = toStringValue(raw.symbol, toStringValue(raw.codeElement, sourcePath))
-  const createdAt = toStringValue(raw.createdAt, new Date().toISOString())
-  const updatedAt = toStringValue(raw.updatedAt, createdAt)
+function normalizeIssue(rawPayload: unknown, index: number, scanId: string): Issue {
+  const raw = asObject(rawPayload)
+  const codeElement = asObject(raw.code_element)
+  const docReference = asObject(raw.doc_reference)
+  const nestedCode = asObject(raw.code)
+  const nestedDoc = asObject(raw.doc)
+
+  const reason = toStringValue(raw.reason, toStringValue(raw.type, 'backend-issue'))
+  const codePath = toStringValue(
+    raw.code_path,
+    toStringValue(
+      raw.file_path,
+      toStringValue(codeElement.file_path, toStringValue(nestedCode.path, 'unknown')),
+    ),
+  )
+  const symbol = toStringValue(
+    raw.symbol,
+    toStringValue(
+      raw.codeElement,
+      toStringValue(codeElement.name, toStringValue(nestedCode.symbol, codePath)),
+    ),
+  )
+  const docPath = toStringValue(
+    raw.doc_path,
+    toStringValue(
+      raw.docPath,
+      toStringValue(docReference.file_path, toStringValue(nestedDoc.path, codePath)),
+    ),
+  )
+  const docSection = toStringValue(
+    raw.docSection,
+    toStringValue(
+      raw.reference,
+      toStringValue(
+        docReference.referenced_symbol,
+        toStringValue(nestedDoc.reference, toStringValue(nestedDoc.line, 'general')),
+      ),
+    ),
+  )
+  const createdAt = toStringValue(raw.created_at, toStringValue(raw.createdAt, new Date().toISOString()))
+  const updatedAt = toStringValue(raw.updated_at, toStringValue(raw.updatedAt, createdAt))
   const issueNumber = toNumberValue(raw.issueNumber, index + 1)
-  const score = toNumberValue(raw.score, toNumberValue(raw.rot_score, 0))
+  const score = toNumberValue(
+    raw.score,
+    toNumberValue(raw.cumulative_score, toNumberValue(raw.cumulativeScore, 0)),
+  )
+  const rawMismatchType = toStringValue(raw.mismatchType)
+  const mismatchType = rawMismatchType ? parseMismatchType(rawMismatchType) : inferMismatchType(reason)
 
   return {
-    id,
+    id: toStringValue(raw.id, `${scanId}-issue-${index + 1}`),
     issueNumber,
-    title,
-    description,
-    mismatchType: parseMismatchType(raw.mismatchType),
+    title: toStringValue(raw.title, toStringValue(raw.message, `Issue ${index + 1}`)),
+    description: toStringValue(raw.description, toStringValue(raw.message, 'Documentation mismatch detected.')),
+    mismatchType,
     codeElement: toStringValue(raw.codeElement, symbol),
-    sourcePath,
+    sourcePath: toStringValue(raw.sourcePath, codePath),
     docPath,
     docSection,
     status: parseStatus(raw.status),
-    priority: parsePriority(raw.priority),
-    reason: toStringValue(raw.reason, 'backend-issue'),
+    priority: parsePriority(raw.priority ?? raw.severity),
+    reason,
     symbol,
-    codeFile: toStringValue(raw.codeFile, sourcePath),
-    signature: typeof raw.signature === 'string' ? raw.signature : undefined,
-    detectorTag: raw.detectorTag === 'doc_file_flagged' ? 'doc_file_flagged' : 'docstring_stale',
+    codeFile: toStringValue(raw.codeFile, codePath),
+    signature: toStringValue(raw.signature, toStringValue(codeElement.signature, '')) || undefined,
+    detectorTag: raw.detectorTag === 'doc_file_flagged' || reason === 'doc_file_flagged' ? 'doc_file_flagged' : 'docstring_stale',
     score,
-    cumulativeScore:
-      typeof raw.cumulativeScore === 'number' && Number.isFinite(raw.cumulativeScore)
-        ? raw.cumulativeScore
-        : undefined,
-    changeSummary: toStringValue(raw.changeSummary, toStringValue(raw.message, '')),
-    suggestion: toStringValue(raw.suggestion, 'Review linked documentation.'),
+    cumulativeScore: toNumberValue(raw.cumulativeScore, toNumberValue(raw.cumulative_score, 0)) || undefined,
+    changeSummary: Array.isArray(raw.reasons)
+      ? (raw.reasons as string[]).join(', ')
+      : toStringValue(raw.changeSummary, toStringValue(raw.message, '')),
+    suggestion: toStringValue(raw.suggestion, toStringValue(raw.suggested_action, 'Review linked documentation.')),
     createdAt,
     updatedAt,
   }
 }
 
-export async function getIssues() {
-  const scans = await getScans()
-  if (scans.length === 0) {
+export async function getIssues(scanId?: string) {
+  let resolvedScanId = scanId
+
+  if (!resolvedScanId) {
+    const scans = await getScans()
+    resolvedScanId = scans[0]?.id
+  }
+
+  if (!resolvedScanId) {
     return []
   }
 
-  const latestScan = scans[0]
-  const scanId = latestScan.id
-  if (!scanId) {
-    return []
-  }
-
-  const rawIssues = await getScanIssues(scanId)
-  return rawIssues.map((issue, index) => normalizeIssue(issue as Record<string, unknown>, index, scanId))
+  const rawIssues = await getScanIssues(resolvedScanId)
+  return rawIssues.map((issue, index) => normalizeIssue(issue, index, resolvedScanId!))
 }
