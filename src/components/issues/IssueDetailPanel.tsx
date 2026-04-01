@@ -8,7 +8,11 @@ interface IssueDetailPanelProps {
 
 export function IssueDetailPanel({ issue }: IssueDetailPanelProps) {
   if (!issue) {
-    return <Card title="Mismatch Details">Select a mismatch from the table.</Card>
+    return (
+      <Card title="Mismatch Details" className="detail-card">
+        <p className="detail-copy">Select a mismatch from the table to inspect the documentation drift details.</p>
+      </Card>
+    )
   }
 
   const statusVariant =
@@ -18,8 +22,10 @@ export function IssueDetailPanel({ issue }: IssueDetailPanelProps) {
 
   return (
     <Card title="Documentation Mismatch Details" className="detail-card">
-      <h4 className="detail-title">{issue.title}</h4>
-      <p className="muted">{issue.description}</p>
+      <div className="detail-header">
+        <h4 className="detail-title">{issue.title}</h4>
+        <p className="detail-copy">{issue.description}</p>
+      </div>
       <div className="badge-row">
         <Badge variant={statusVariant}>{issue.status}</Badge>
         <Badge variant={priorityVariant}>{issue.priority}</Badge>
@@ -54,6 +60,31 @@ export function IssueDetailPanel({ issue }: IssueDetailPanelProps) {
           <p className="detail-label">Last Scan Update</p>
           <p>{new Date(issue.updatedAt).toLocaleString()}</p>
         </div>
+        <div>
+          <p className="detail-label">Detector Tag</p>
+          <p>{issue.detectorTag}</p>
+        </div>
+        <div>
+          <p className="detail-label">Score</p>
+          <p>{issue.cumulativeScore ?? issue.score}</p>
+        </div>
+      </div>
+
+      {issue.signature ? (
+        <div className="detail-section">
+          <p className="detail-label">Signature</p>
+          <code className="detail-code">{issue.signature}</code>
+        </div>
+      ) : null}
+
+      <div className="detail-section">
+        <p className="detail-label">Change Summary</p>
+        <p className="detail-copy">{issue.changeSummary || 'No detailed summary is available for this issue yet.'}</p>
+      </div>
+
+      <div className="detail-section">
+        <p className="detail-label">Suggested Action</p>
+        <p className="detail-copy">{issue.suggestion}</p>
       </div>
     </Card>
   )

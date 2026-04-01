@@ -31,7 +31,7 @@ export function IssueTable({ issues, onSelect }: IssueTableProps) {
         {
           key: 'docSection',
           label: 'Documentation Section',
-          render: (issue) => `${issue.docPath} · ${issue.docSection}`,
+          render: (issue) => `${issue.docPath} - ${issue.docSection}`,
         },
         {
           key: 'mismatchType',

@@ -6,10 +6,17 @@ type StatCardTone = 'positive' | 'negative'
 type ActivityTone = 'success' | 'warning' | 'info' | 'danger'
 
 interface DashboardActivity {
+  scanId?: string
   title: string
   subtitle: string
   time: string
   tone: ActivityTone
+}
+
+interface DashboardPageProps {
+  onOpenHistory?: (scanId?: string) => void
+  onOpenIssues?: () => void
+  onOpenProjects?: () => void
 }
 
 function asFiniteNumber(value: unknown): number | null {
@@ -106,7 +113,7 @@ function StatIcon({ type }: { type: 'folder' | 'search' | 'warning' | 'chart' })
   )
 }
 
-export function DashboardPage() {
+export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects }: DashboardPageProps) {
   const [scans, setScans] = useState<ScanRecord[]>([])
   const [openIssues, setOpenIssues] = useState(0)
   const [healthIndex, setHealthIndex] = useState<number | null>(null)
@@ -219,6 +226,7 @@ export function DashboardPage() {
       const tone: ActivityTone = (mismatches ?? 0) > 0 ? 'warning' : score !== null && score >= 80 ? 'success' : 'info'
 
       return {
+        scanId: scan.id,
         title: `Scan Completed: ${scan.id || `Scan ${index + 1}`}`,
         subtitle:
           mismatches !== null
@@ -231,6 +239,16 @@ export function DashboardPage() {
   }, [scans])
 
   const healthProgress = Math.max(0, Math.min(100, Math.round(healthIndex ?? 0)))
+  const totalProjectCount = new Set(
+    scans.map((scan) => scan.repo_path).filter((path) => typeof path === 'string' && path.length > 0),
+  ).size
+
+  const statActions: Record<string, (() => void) | undefined> = {
+    'Total Projects': onOpenProjects,
+    'Total Scans': () => onOpenHistory?.(),
+    'Open Issues': onOpenIssues,
+    'Latest Scan Score': () => onOpenHistory?.(scans[0]?.id),
+  }
 
   return (
     <section className="dashboard-page">
@@ -248,7 +266,12 @@ export function DashboardPage() {
 
       <div className="dashboard-stats-grid">
         {statCards.map((card) => (
-          <article key={card.title} className="dashboard-stat-card">
+          <button
+            key={card.title}
+            className={`dashboard-stat-card dashboard-stat-card-button ${statActions[card.title] ? 'interactive' : ''}`}
+            onClick={statActions[card.title]}
+            type="button"
+          >
             <div className="dashboard-stat-top-row">
               <span className="dashboard-tile-icon" aria-hidden="true">
                 <StatIcon type={card.icon} />
@@ -257,7 +280,12 @@ export function DashboardPage() {
             </div>
             <p className="dashboard-stat-title">{card.title}</p>
             <p className="dashboard-stat-value">{card.value}</p>
-          </article>
+            {card.title === 'Total Projects' ? (
+              <small className="dashboard-card-meta">{totalProjectCount > 0 ? 'Open project workspace' : 'Awaiting scans'}</small>
+            ) : (
+              <small className="dashboard-card-meta">Open detail view</small>
+            )}
+          </button>
         ))}
       </div>
 
@@ -265,20 +293,26 @@ export function DashboardPage() {
         <section className="dashboard-panel activity-panel">
           <header className="dashboard-panel-headline">
             <h3>Recent Activity</h3>
-            <button type="button" className="dashboard-text-link">
-                latest scans
+            <button type="button" className="dashboard-text-link" onClick={() => onOpenHistory?.()}>
+              latest scans
             </button>
           </header>
 
           <ul className="activity-list">
             {activityRows.map((activity) => (
               <li key={activity.title} className="activity-row">
-                <span className={`activity-dot ${activity.tone}`} aria-hidden="true" />
-                <div className="activity-copy">
-                  <p>{activity.title}</p>
-                  <small>{activity.subtitle}</small>
-                </div>
-                <span className="activity-time">{activity.time}</span>
+                <button
+                  className={`activity-row-button ${activity.scanId ? 'interactive' : ''}`}
+                  onClick={() => onOpenHistory?.(activity.scanId)}
+                  type="button"
+                >
+                  <span className={`activity-dot ${activity.tone}`} aria-hidden="true" />
+                  <div className="activity-copy">
+                    <p>{activity.title}</p>
+                    <small>{activity.subtitle}</small>
+                  </div>
+                  <span className="activity-time">{activity.time}</span>
+                </button>
               </li>
             ))}
           </ul>
@@ -286,17 +320,17 @@ export function DashboardPage() {
 
         <aside className="dashboard-panel quick-actions-panel">
           <h3>Quick Actions</h3>
-          <button type="button" className="action-primary-btn">
+          <button type="button" className="action-primary-btn" onClick={() => onOpenHistory?.()}>
             <span>New Scan</span>
-            <span aria-hidden="true">→</span>
+            <span aria-hidden="true">-&gt;</span>
           </button>
 
           <div className="action-secondary-grid">
-            <button type="button" className="action-secondary-btn">
+            <button type="button" className="action-secondary-btn" onClick={onOpenProjects}>
               Add Project
             </button>
-            <button type="button" className="action-secondary-btn">
-              Reports
+            <button type="button" className="action-secondary-btn" onClick={() => onOpenHistory?.()}>
+              Scan History
             </button>
           </div>
 

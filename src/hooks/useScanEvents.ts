@@ -34,7 +34,6 @@ export function useScanEvents(onScanAdded: () => void, initialLastId = 0, enable
     if (!enabled || !TOKEN) {
       esRef.current?.close()
       esRef.current = null
-      setIsConnected(false)
       return
     }
 
