@@ -191,7 +191,7 @@ export function ScanHistoryPage({ initialSelectedScanId, onOpenIssuesForScan }: 
       totalScans === 0
         ? 0
         : Math.round(scans.reduce((sum, scan) => sum + clampScore(scan.rot_score), 0) / totalScans)
-    const completedScans = scans.filter((scan) => scan.status === 'completed').length
+    const completedScans = scans.filter((scan) => scan.status === 'completed' || scan.status === 'clean').length
     const successRate = totalScans === 0 ? 0 : Math.round((completedScans / totalScans) * 100)
 
     return [
