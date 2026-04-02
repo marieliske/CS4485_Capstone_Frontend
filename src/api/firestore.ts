@@ -11,6 +11,20 @@ import { db } from '../firebase'
 import type { ScanRecord } from './scans'
 
 // ---------------------------------------------------------------------------
+// GitHub username filter — set at sign-in, used to filter repos
+// ---------------------------------------------------------------------------
+
+let _githubUsername: string | null = null
+
+export function setGithubUsernameFilter(username: string | null) {
+  _githubUsername = username
+}
+
+export function getGithubUsernameFilter(): string | null {
+  return _githubUsername
+}
+
+// ---------------------------------------------------------------------------
 // Repos
 // ---------------------------------------------------------------------------
 
@@ -40,15 +54,24 @@ function toRepoRecord(id: string, data: DocumentData): RepoRecord {
   }
 }
 
+function belongsToUser(repo: RepoRecord): boolean {
+  if (!_githubUsername) return true
+  const owner = repo.full_name.split('/')[0]
+  return owner.toLowerCase() === _githubUsername.toLowerCase()
+}
+
 export async function getRepos(): Promise<RepoRecord[]> {
   const snapshot = await getDocs(collection(db, 'repos'))
-  return snapshot.docs.map((d) => toRepoRecord(d.id, d.data()))
+  const all = snapshot.docs.map((d) => toRepoRecord(d.id, d.data()))
+  return all.filter(belongsToUser)
 }
 
 export async function getRepoById(repoId: string): Promise<RepoRecord | null> {
   const snap = await getDoc(doc(db, 'repos', repoId))
   if (!snap.exists()) return null
-  return toRepoRecord(snap.id, snap.data())
+  const record = toRepoRecord(snap.id, snap.data())
+  if (!belongsToUser(record)) return null
+  return record
 }
 
 // ---------------------------------------------------------------------------
@@ -65,7 +88,6 @@ function toScanRecord(scanId: string, data: DocumentData, repoId: string): ScanR
     mismatch_count: (data.total_issues ?? 0) as number,
     created_at: toISOString(data.scanned_at),
     updated_at: toISOString(data.scanned_at),
-    // extra fields from Firestore
     branch: data.branch as string | undefined,
     high_count: (data.high_count ?? 0) as number,
     medium_count: (data.medium_count ?? 0) as number,

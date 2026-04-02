@@ -1,6 +1,7 @@
 import { startTransition, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { onAuthStateChanged, signOut, type User } from 'firebase/auth'
 import { auth } from './firebase'
+import { setGithubUsernameFilter } from './api/firestore'
 import { DashboardPage } from './pages/DashboardPage'
 import { ProjectsPage } from './pages/ProjectsPage'
 import { IssuesPage } from './pages/IssuesPage'
@@ -104,6 +105,7 @@ const navItems: Array<{ key: PageKey; label: string; icon: ReactNode }> = [
 function App() {
   const [activePage, setActivePage] = useState<PageKey>('dashboard')
   const [user, setUser] = useState<User | null>(null)
+  const [githubUsername, setGithubUsername] = useState<string | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [authMode, setAuthMode] = useState<AuthMode>('sign-in')
   const [focusedScanId, setFocusedScanId] = useState<string | null>(null)
@@ -111,6 +113,20 @@ function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser)
+      // For returning users, try to extract GitHub username from provider data
+      if (firebaseUser && !githubUsername) {
+        const ghProvider = firebaseUser.providerData.find((p) => p.providerId === 'github.com')
+        if (ghProvider) {
+          const stored = localStorage.getItem('docrot_github_username')
+          if (stored) {
+            setGithubUsername(stored)
+            setGithubUsernameFilter(stored)
+          }
+        }
+      }
+      if (!firebaseUser) {
+        setGithubUsernameFilter(null)
+      }
       setAuthLoading(false)
     })
     return unsubscribe
@@ -181,7 +197,12 @@ function App() {
     return (
       <AuthPage
         mode={authMode}
-        onAuthenticate={() => {
+        onAuthenticate={(username) => {
+          if (username) {
+            setGithubUsername(username)
+            setGithubUsernameFilter(username)
+            localStorage.setItem('docrot_github_username', username)
+          }
           startTransition(() => {
             setActivePage('dashboard')
             setAuthMode('sign-in')
@@ -244,7 +265,7 @@ function App() {
           <button
             type="button"
             className="app-nav-link"
-            onClick={() => signOut(auth)}
+            onClick={() => { localStorage.removeItem('docrot_github_username'); setGithubUsername(null); setGithubUsernameFilter(null); signOut(auth) }}
             style={{ marginTop: '0.5rem', width: '100%' }}
           >
             Sign Out
