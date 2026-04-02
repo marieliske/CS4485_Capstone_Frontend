@@ -1,3 +1,11 @@
+import { useState } from 'react'
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+} from 'firebase/auth'
+import { auth, githubProvider } from '../firebase'
+
 export type AuthMode = 'sign-in' | 'sign-up'
 
 interface AuthPageProps {
@@ -50,6 +58,48 @@ function FeatureIcon({ type }: { type: 'scan' | 'alert' | 'drilldown' }) {
 
 export function AuthPage({ mode, onAuthenticate, onModeChange }: AuthPageProps) {
   const isSignUp = mode === 'sign-up'
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  async function handleEmailAuth(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null)
+
+    if (isSignUp && password !== confirmPassword) {
+      setError('Passwords do not match.')
+      return
+    }
+
+    setLoading(true)
+    try {
+      if (isSignUp) {
+        await createUserWithEmailAndPassword(auth, email, password)
+      } else {
+        await signInWithEmailAndPassword(auth, email, password)
+      }
+      onAuthenticate?.()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Authentication failed.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleGitHubAuth() {
+    setError(null)
+    setLoading(true)
+    try {
+      await signInWithPopup(auth, githubProvider)
+      onAuthenticate?.()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'GitHub authentication failed.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <section className="auth-page">
@@ -149,7 +199,7 @@ export function AuthPage({ mode, onAuthenticate, onModeChange }: AuthPageProps) 
               </p>
             </div>
 
-            <button type="button" className="auth-provider-btn">
+            <button type="button" className="auth-provider-btn" onClick={handleGitHubAuth} disabled={loading}>
               <span aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 .7a11.3 11.3 0 0 0-3.58 22c.57.1.78-.25.78-.55v-2.15c-3.19.7-3.87-1.36-3.87-1.36-.52-1.32-1.27-1.66-1.27-1.66-1.03-.7.08-.69.08-.69 1.15.08 1.74 1.17 1.74 1.17 1 .17 2.13.73 2.66 1.96.89 1.52 2.34 1.08 2.91.82.09-.72.35-1.21.63-1.49-2.55-.29-5.22-1.28-5.22-5.7 0-1.26.45-2.28 1.17-3.08-.12-.28-.51-1.44.11-2.99 0 0 .96-.31 3.14 1.17a10.8 10.8 0 0 1 5.72 0c2.18-1.48 3.13-1.17 3.13-1.17.63 1.55.24 2.71.12 2.99.73.8 1.17 1.82 1.17 3.08 0 4.43-2.68 5.4-5.24 5.69.42.36.78 1.05.78 2.14v3.17c0 .31.2.66.79.55A11.3 11.3 0 0 0 12 .7Z" />
@@ -158,16 +208,15 @@ export function AuthPage({ mode, onAuthenticate, onModeChange }: AuthPageProps) 
               {isSignUp ? 'Sign up with GitHub' : 'Continue with GitHub'}
             </button>
 
+            {error ? <p className="auth-error-text" style={{ color: '#e04c6f', fontSize: '0.85rem', textAlign: 'center', margin: '0.5rem 0' }}>{error}</p> : null}
+
             <div className="auth-divider">
               <span>{isSignUp ? 'or create an account with email' : 'or continue with email'}</span>
             </div>
 
             <form
               className="auth-form"
-              onSubmit={(event) => {
-                event.preventDefault()
-                onAuthenticate?.()
-              }}
+              onSubmit={handleEmailAuth}
             >
               {isSignUp ? (
                 <div className="auth-form-grid">
@@ -184,7 +233,7 @@ export function AuthPage({ mode, onAuthenticate, onModeChange }: AuthPageProps) 
 
               <label className="auth-field">
                 <span>{isSignUp ? 'Work Email' : 'Email Address'}</span>
-                <input type="email" placeholder="name@company.com" />
+                <input type="email" placeholder="name@company.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
               </label>
 
               {isSignUp ? (
@@ -199,13 +248,13 @@ export function AuthPage({ mode, onAuthenticate, onModeChange }: AuthPageProps) 
                   <span>Password</span>
                   {!isSignUp ? <button type="button">Forgot password?</button> : null}
                 </div>
-                <input type="password" placeholder="Enter your password" />
+                <input type="password" placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} required />
               </label>
 
               {isSignUp ? (
                 <label className="auth-field">
                   <span>Confirm Password</span>
-                  <input type="password" placeholder="Re-enter your password" />
+                  <input type="password" placeholder="Re-enter your password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
                 </label>
               ) : null}
 
@@ -216,8 +265,8 @@ export function AuthPage({ mode, onAuthenticate, onModeChange }: AuthPageProps) 
                 </label>
               </div>
 
-              <button type="submit" className="auth-submit-btn">
-                <span>{isSignUp ? 'Create Account' : 'Sign In to Dashboard'}</span>
+              <button type="submit" className="auth-submit-btn" disabled={loading}>
+                <span>{loading ? 'Please wait...' : isSignUp ? 'Create Account' : 'Sign In to Dashboard'}</span>
                 <span aria-hidden="true">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                     <path d="M5 12h14" />

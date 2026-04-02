@@ -1,4 +1,6 @@
-import { startTransition, useMemo, useState, type ReactNode } from 'react'
+import { startTransition, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { onAuthStateChanged, signOut, type User } from 'firebase/auth'
+import { auth } from './firebase'
 import { DashboardPage } from './pages/DashboardPage'
 import { ProjectsPage } from './pages/ProjectsPage'
 import { IssuesPage } from './pages/IssuesPage'
@@ -101,9 +103,18 @@ const navItems: Array<{ key: PageKey; label: string; icon: ReactNode }> = [
 
 function App() {
   const [activePage, setActivePage] = useState<PageKey>('dashboard')
-  const [isSignedIn, setIsSignedIn] = useState(false)
+  const [user, setUser] = useState<User | null>(null)
+  const [authLoading, setAuthLoading] = useState(true)
   const [authMode, setAuthMode] = useState<AuthMode>('sign-in')
   const [focusedScanId, setFocusedScanId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser)
+      setAuthLoading(false)
+    })
+    return unsubscribe
+  }, [])
 
   const navigateToPage = (page: PageKey) => {
     startTransition(() => {
@@ -156,12 +167,17 @@ function App() {
             onOpenHistory={openHistory}
             onOpenIssues={() => openIssues()}
             onOpenProjects={() => navigateToPage('projects')}
+            userName={user?.displayName ?? user?.email?.split('@')[0] ?? undefined}
           />
         )
     }
   }, [activePage, focusedScanId])
 
-  if (!isSignedIn) {
+  if (authLoading) {
+    return <div className="page-placeholder" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#8ea2c1' }}>Loading...</div>
+  }
+
+  if (!user) {
     return (
       <AuthPage
         mode={authMode}
@@ -170,7 +186,6 @@ function App() {
             setActivePage('dashboard')
             setAuthMode('sign-in')
             setFocusedScanId(null)
-            setIsSignedIn(true)
           })
         }}
         onModeChange={setAuthMode}
@@ -222,10 +237,18 @@ function App() {
           <div className="user-row">
             <span className="avatar" aria-hidden="true" />
             <div>
-              <p>Alex Chen</p>
-              <small>Pro Plan</small>
+              <p>{user.displayName ?? user.email ?? 'User'}</p>
+              <small>{user.email ?? ''}</small>
             </div>
           </div>
+          <button
+            type="button"
+            className="app-nav-link"
+            onClick={() => signOut(auth)}
+            style={{ marginTop: '0.5rem', width: '100%' }}
+          >
+            Sign Out
+          </button>
         </div>
       </aside>
 
