@@ -90,16 +90,6 @@ const navItems: Array<{ key: PageKey; label: string; icon: ReactNode }> = [
       </NavIcon>
     ),
   },
-  {
-    key: 'wf-user-settings',
-    label: 'User Settings',
-    icon: (
-      <NavIcon>
-        <circle cx="12" cy="8" r="3" />
-        <path d="M6 19c1.4-3 3.5-4.5 6-4.5s4.6 1.5 6 4.5" />
-      </NavIcon>
-    ),
-  },
 ]
 
 function App() {
@@ -223,39 +213,53 @@ function App() {
           ? 'Search user settings...'
           : 'Search documentation...'
 
-  return (
-    <div className="app-shell">
-      <aside className="app-sidebar">
-        <div className="app-brand">
-          <span className="app-brand-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <circle cx="12" cy="12" r="8" />
-              <path d="M12 8v8" />
-              <path d="M8 12h8" />
-            </svg>
-          </span>
-          <div>
-            <h1>DocRot</h1>
-            <p>Detector Admin</p>
-          </div>
+ return (
+  <div className="app-shell">
+    <aside className="app-sidebar">
+      <div className="app-brand">
+        <span className="app-brand-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <circle cx="12" cy="12" r="8" />
+            <path d="M12 8v8" />
+            <path d="M8 12h8" />
+          </svg>
+        </span>
+        <div>
+          <h1>DocRot</h1>
+          <p>Detector Admin</p>
         </div>
-        <nav className="app-nav">
-          {navItems.map((item) => (
-            <button
-              key={item.key}
-              aria-current={activePage === item.key ? 'page' : undefined}
-              className={activePage === item.key ? 'app-nav-link active' : 'app-nav-link'}
-              onClick={() => navigateToPage(item.key)}
-              type="button"
-            >
-              {item.icon}
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </nav>
+      </div>
 
-        <div className="app-sidebar-footer">
-          <div className="user-row">
+      <nav className="app-nav">
+        {navItems.map((item) => (
+          <button
+            key={item.key}
+            aria-current={activePage === item.key ? 'page' : undefined}
+            className={activePage === item.key ? 'app-nav-link active' : 'app-nav-link'}
+            onClick={() => navigateToPage(item.key)}
+            type="button"
+          >
+            {item.icon}
+            <span>{item.label}</span>
+          </button>
+        ))}
+      </nav>
+
+      <div className="app-sidebar-footer">
+        <button
+          type="button"
+          className={activePage === 'wf-user-settings' ? 'app-nav-link active' : 'app-nav-link'}
+          onClick={() => navigateToPage('wf-user-settings')}
+          style={{ width: '100%', marginBottom: '0.75rem' }}
+        >
+          <NavIcon>
+            <circle cx="12" cy="8" r="3" />
+            <path d="M6 19c1.4-3 3.5-4.5 6-4.5s4.6 1.5 6 4.5" />
+          </NavIcon>
+          <span>User Settings</span>
+        </button>
+
+        <div className="user-row">
             <span className="avatar" aria-hidden="true" />
             <div>
               <p>{user.displayName ?? user.email ?? 'User'}</p>
