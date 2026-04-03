@@ -84,7 +84,7 @@ function toScanRecord(scanId: string, data: DocumentData, repoId: string): ScanR
     repo_path: data.full_name ?? repoId,
     commit_sha: data.commit_hash ?? undefined,
     status: data.status ?? 'completed',
-    rot_score: undefined,
+    rot_score: (data.rot_score ?? undefined) as number | undefined,
     mismatch_count: (data.total_issues ?? 0) as number,
     created_at: toISOString(data.scanned_at),
     updated_at: toISOString(data.scanned_at),
