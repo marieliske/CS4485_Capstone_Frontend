@@ -292,7 +292,7 @@ export function ScanHistoryPage({ initialSelectedScanId, onOpenIssuesForScan }: 
                       <td>
                         <div className="rot-score-cell">
                           <div className="rot-track">
-                            <span className={score >= 80 ? 'healthy' : score >= 50 ? 'degrading' : 'critical'} style={{ width: `${score}%` }} />
+                            <span className={score <= 20 ? 'healthy' : score <= 50 ? 'degrading' : 'critical'} style={{ width: `${score}%` }} />
                           </div>
                           <strong>{score}%</strong>
                         </div>

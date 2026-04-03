@@ -202,7 +202,7 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
         title: 'Latest Scan Score',
         value: `${Math.max(0, Math.min(100, Math.round(healthIndex ?? 0)))}%`,
         delta: 'live',
-        tone: 'positive' as StatCardTone,
+        tone: ((healthIndex ?? 0) <= 20 ? 'positive' : (healthIndex ?? 0) <= 50 ? 'neutral' : 'negative') as StatCardTone,
         icon: 'chart' as const,
       },
     ],
@@ -224,7 +224,7 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
     return scans.slice(0, 4).map((scan, index) => {
       const score = asFiniteNumber(scan.rot_score)
       const mismatches = asFiniteNumber(scan.mismatch_count)
-      const tone: ActivityTone = (mismatches ?? 0) > 0 ? 'warning' : score !== null && score >= 80 ? 'success' : 'info'
+      const tone: ActivityTone = (mismatches ?? 0) > 0 ? 'warning' : score !== null && score <= 20 ? 'success' : 'info'
 
       return {
         scanId: scan.id,

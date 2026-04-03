@@ -78,9 +78,9 @@ function toProjectRow(repository: string, scans: ScanRecord[]): ProjectRow {
   let statusTone: ProjectRow['statusTone'] = 'healthy'
   if (!latestScan) {
     statusTone = 'untracked'
-  } else if (latestScan.status === 'failed' || averageScore < 50) {
+  } else if (latestScan.status === 'failed' || averageScore > 50) {
     statusTone = 'critical'
-  } else if ((latestScan.mismatch_count ?? 0) > 0 || averageScore < 80) {
+  } else if ((latestScan.mismatch_count ?? 0) > 0 || averageScore > 20) {
     statusTone = 'degrading'
   }
 
