@@ -17,6 +17,7 @@ interface DashboardPageProps {
   onOpenHistory?: (scanId?: string) => void
   onOpenIssues?: () => void
   onOpenProjects?: () => void
+  userName?: string
 }
 
 function asFiniteNumber(value: unknown): number | null {
@@ -113,7 +114,7 @@ function StatIcon({ type }: { type: 'folder' | 'search' | 'warning' | 'chart' })
   )
 }
 
-export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects }: DashboardPageProps) {
+export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, userName }: DashboardPageProps) {
   const [scans, setScans] = useState<ScanRecord[]>([])
   const [openIssues, setOpenIssues] = useState(0)
   const [healthIndex, setHealthIndex] = useState<number | null>(null)
@@ -201,7 +202,7 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects }: D
         title: 'Latest Scan Score',
         value: `${Math.max(0, Math.min(100, Math.round(healthIndex ?? 0)))}%`,
         delta: 'live',
-        tone: 'positive' as StatCardTone,
+        tone: ((healthIndex ?? 0) <= 20 ? 'positive' : (healthIndex ?? 0) <= 50 ? 'neutral' : 'negative') as StatCardTone,
         icon: 'chart' as const,
       },
     ],
@@ -223,7 +224,7 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects }: D
     return scans.slice(0, 4).map((scan, index) => {
       const score = asFiniteNumber(scan.rot_score)
       const mismatches = asFiniteNumber(scan.mismatch_count)
-      const tone: ActivityTone = (mismatches ?? 0) > 0 ? 'warning' : score !== null && score >= 80 ? 'success' : 'info'
+      const tone: ActivityTone = (mismatches ?? 0) > 0 ? 'warning' : score !== null && score <= 20 ? 'success' : 'info'
 
       return {
         scanId: scan.id,
@@ -253,8 +254,8 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects }: D
   return (
     <section className="dashboard-page">
       <header className="dashboard-welcome">
-        <h2>Welcome back, Team 2</h2>
-        <p>Here&apos;s a live summary of your documentation health from the backend API.</p>
+        <h2>Welcome back{userName ? `, ${userName}` : ''}</h2>
+        <p>Here&apos;s a live summary of your documentation health from Firestore.</p>
         <div className="dashboard-live-meta">
           <span className={loading ? 'dashboard-live-pill loading' : 'dashboard-live-pill'}>
             {loading ? 'Refreshing...' : streamConnected ? 'Live stream' : 'Polling mode'}

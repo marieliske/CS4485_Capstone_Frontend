@@ -191,7 +191,7 @@ export function ScanHistoryPage({ initialSelectedScanId, onOpenIssuesForScan }: 
       totalScans === 0
         ? 0
         : Math.round(scans.reduce((sum, scan) => sum + clampScore(scan.rot_score), 0) / totalScans)
-    const completedScans = scans.filter((scan) => scan.status === 'completed').length
+    const completedScans = scans.filter((scan) => scan.status === 'completed' || scan.status === 'clean').length
     const successRate = totalScans === 0 ? 0 : Math.round((completedScans / totalScans) * 100)
 
     return [
@@ -292,7 +292,7 @@ export function ScanHistoryPage({ initialSelectedScanId, onOpenIssuesForScan }: 
                       <td>
                         <div className="rot-score-cell">
                           <div className="rot-track">
-                            <span className={score >= 80 ? 'healthy' : score >= 50 ? 'degrading' : 'critical'} style={{ width: `${score}%` }} />
+                            <span className={score <= 20 ? 'healthy' : score <= 50 ? 'degrading' : 'critical'} style={{ width: `${score}%` }} />
                           </div>
                           <strong>{score}%</strong>
                         </div>

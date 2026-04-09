@@ -1,5 +1,6 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
-import { getScans, type ScanRecord } from '../api/scans'
+import { getRepos, getScanRunsForRepo } from '../api/firestore'
+import type { ScanRecord } from '../api/scans'
 
 interface ProjectsPageProps {
   onInspectProject?: (scanId?: string) => void
@@ -77,9 +78,9 @@ function toProjectRow(repository: string, scans: ScanRecord[]): ProjectRow {
   let statusTone: ProjectRow['statusTone'] = 'healthy'
   if (!latestScan) {
     statusTone = 'untracked'
-  } else if (latestScan.status === 'failed' || averageScore < 50) {
+  } else if (latestScan.status === 'failed' || averageScore > 50) {
     statusTone = 'critical'
-  } else if ((latestScan.mismatch_count ?? 0) > 0 || averageScore < 80) {
+  } else if ((latestScan.mismatch_count ?? 0) > 0 || averageScore > 20) {
     statusTone = 'degrading'
   }
 
@@ -99,7 +100,7 @@ function toProjectRow(repository: string, scans: ScanRecord[]): ProjectRow {
 }
 
 export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
-  const [scans, setScans] = useState<ScanRecord[]>([])
+  const [projectRows, setProjectRows] = useState<ProjectRow[]>([])
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -111,15 +112,23 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
 
     async function loadProjects() {
       try {
-        const liveScans = await getScans()
+        const repos = await getRepos()
+        const rows: ProjectRow[] = []
+
+        for (const repo of repos) {
+          const scans = await getScanRunsForRepo(repo.id)
+          rows.push(toProjectRow(repo.full_name || repo.id, scans))
+        }
+
         if (!cancelled) {
-          setScans(liveScans)
-          setError(liveScans.length === 0 ? 'No backend projects are available until scans are recorded.' : null)
+          rows.sort((a, b) => a.name.localeCompare(b.name))
+          setProjectRows(rows)
+          setError(repos.length === 0 ? 'No projects are available yet. Run a scan to get started.' : null)
         }
       } catch (err) {
         if (!cancelled) {
-          setScans([])
-          setError(err instanceof Error ? err.message : 'Unable to load projects from the backend.')
+          setProjectRows([])
+          setError(err instanceof Error ? err.message : 'Unable to load projects from Firestore.')
         }
       } finally {
         if (!cancelled) {
@@ -134,21 +143,6 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
       cancelled = true
     }
   }, [])
-
-  const projectRows = useMemo(() => {
-    const grouped = new Map<string, ScanRecord[]>()
-
-    for (const scan of scans) {
-      const repository = scan.repo_path ?? 'unknown-project'
-      const existing = grouped.get(repository) ?? []
-      existing.push(scan)
-      grouped.set(repository, existing)
-    }
-
-    return [...grouped.entries()]
-      .map(([repository, groupedScans]) => toProjectRow(repository, groupedScans))
-      .sort((left, right) => left.name.localeCompare(right.name))
-  }, [scans])
 
   const filteredRows = useMemo(() => {
     const normalizedQuery = deferredQuery.trim().toLowerCase()

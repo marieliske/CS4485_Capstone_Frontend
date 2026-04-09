@@ -1,10 +1,13 @@
 import { type FormEvent, useState } from 'react'
+import { signInWithPopup, getAdditionalUserInfo } from 'firebase/auth'
 import { useAuth } from '../auth/AuthContext'
+import { auth, githubProvider } from '../firebase'
 
 export type AuthMode = 'sign-in' | 'sign-up'
 
 interface AuthPageProps {
   mode: AuthMode
+  onAuthenticate?: (githubUsername?: string) => void
   onModeChange?: (mode: AuthMode) => void
 }
 
@@ -50,8 +53,8 @@ function FeatureIcon({ type }: { type: 'scan' | 'alert' | 'drilldown' }) {
   )
 }
 
-export function AuthPage({ mode, onModeChange }: AuthPageProps) {
-  const { signInWithEmail, signUpWithEmail, signInWithGitHub } = useAuth()
+export function AuthPage({ mode, onAuthenticate, onModeChange }: AuthPageProps) {
+  const { signInWithEmail, signUpWithEmail } = useAuth()
   const isSignUp = mode === 'sign-up'
 
   const [email, setEmail] = useState('')
@@ -75,6 +78,7 @@ export function AuthPage({ mode, onModeChange }: AuthPageProps) {
       } else {
         await signInWithEmail(email, password)
       }
+      onAuthenticate?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Authentication failed.')
     } finally {
@@ -86,7 +90,10 @@ export function AuthPage({ mode, onModeChange }: AuthPageProps) {
     setError(null)
     setIsLoading(true)
     try {
-      await signInWithGitHub()
+      const result = await signInWithPopup(auth, githubProvider)
+      const additionalInfo = getAdditionalUserInfo(result)
+      const githubUsername = additionalInfo?.username ?? undefined
+      onAuthenticate?.(githubUsername)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'GitHub sign-in failed.')
     } finally {

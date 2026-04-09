@@ -22,23 +22,6 @@ const mappings = [
   },
 ] as const
 
-const alertToggles = [
-  {
-    label: 'Email Digests',
-    helper: 'Receive weekly summaries of doc rot issues.',
-    enabled: true,
-  },
-  {
-    label: 'Slack Integration',
-    helper: 'Post alerts to #dev-docs channel after every push scan.',
-    enabled: false,
-  },
-  {
-    label: 'GitHub Comments',
-    helper: 'Comment on PRs when code changes without docs.',
-    enabled: true,
-  },
-] as const
 
 export function ConfigurationPage() {
   return (
@@ -105,22 +88,6 @@ export function ConfigurationPage() {
           </article>
         </section>
 
-        <section className="configuration-section compact">
-          <div className="configuration-section-head">
-            <h3>Alert Preferences</h3>
-          </div>
-          <ul className="config-alert-list">
-            {alertToggles.map((toggle) => (
-              <li key={toggle.label}>
-                <div>
-                  <strong>{toggle.label}</strong>
-                  <p>{toggle.helper}</p>
-                </div>
-                <span className={toggle.enabled ? 'config-toggle on' : 'config-toggle'} aria-hidden="true" />
-              </li>
-            ))}
-          </ul>
-        </section>
       </div>
 
       <aside className="configuration-tip">

@@ -1,4 +1,5 @@
-import { startTransition, useMemo, useState, type ReactNode } from 'react'
+import { startTransition, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { setGithubUsernameFilter } from './api/firestore'
 import { DashboardPage } from './pages/DashboardPage'
 import { ProjectsPage } from './pages/ProjectsPage'
 import { IssuesPage } from './pages/IssuesPage'
@@ -88,22 +89,28 @@ const navItems: Array<{ key: PageKey; label: string; icon: ReactNode }> = [
       </NavIcon>
     ),
   },
-  {
-    key: 'wf-user-settings',
-    label: 'User Settings',
-    icon: (
-      <NavIcon>
-        <circle cx="12" cy="8" r="3" />
-        <path d="M6 19c1.4-3 3.5-4.5 6-4.5s4.6 1.5 6 4.5" />
-      </NavIcon>
-    ),
-  },
 ]
 
 function AppShell() {
   const { user, logout } = useAuth()
   const [activePage, setActivePage] = useState<PageKey>('dashboard')
   const [focusedScanId, setFocusedScanId] = useState<string | null>(null)
+  const [githubUsername, setGithubUsername] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (user) {
+      const ghProvider = user.providerData.find((p) => p.providerId === 'github.com')
+      if (ghProvider) {
+        const stored = localStorage.getItem('docrot_github_username')
+        if (stored) {
+          setGithubUsername(stored)
+          setGithubUsernameFilter(stored)
+        }
+      }
+    } else {
+      setGithubUsernameFilter(null)
+    }
+  }, [user])
 
   const navigateToPage = (page: PageKey) => {
     startTransition(() => {
@@ -156,6 +163,7 @@ function AppShell() {
             onOpenHistory={openHistory}
             onOpenIssues={() => openIssues()}
             onOpenProjects={() => navigateToPage('projects')}
+            userName={user?.displayName ?? user?.email?.split('@')[0] ?? undefined}
           />
         )
     }
@@ -186,6 +194,7 @@ function AppShell() {
             <p>Detector Admin</p>
           </div>
         </div>
+
         <nav className="app-nav">
           {navItems.map((item) => (
             <button
@@ -202,6 +211,19 @@ function AppShell() {
         </nav>
 
         <div className="app-sidebar-footer">
+          <button
+            type="button"
+            className={activePage === 'wf-user-settings' ? 'app-nav-link active' : 'app-nav-link'}
+            onClick={() => navigateToPage('wf-user-settings')}
+            style={{ width: '100%', marginBottom: '0.75rem' }}
+          >
+            <NavIcon>
+              <circle cx="12" cy="8" r="3" />
+              <path d="M6 19c1.4-3 3.5-4.5 6-4.5s4.6 1.5 6 4.5" />
+            </NavIcon>
+            <span>User Settings</span>
+          </button>
+
           <div className="user-row">
             {user?.photoURL ? (
               <img src={user.photoURL} alt={user.displayName ?? user.email ?? ''} className="avatar" width="32" height="32" />
@@ -209,11 +231,20 @@ function AppShell() {
               <span className="avatar" aria-hidden="true" />
             )}
             <div>
-              <p>{user?.displayName || user?.email || 'Unknown'}</p>
-              <small>{user?.email}</small>
+              <p>{user?.displayName ?? user?.email ?? 'User'}</p>
+              <small>{user?.email ?? ''}</small>
             </div>
           </div>
-          <button type="button" className="logout-btn" onClick={logout}>
+          <button
+            type="button"
+            className="logout-btn"
+            onClick={() => {
+              localStorage.removeItem('docrot_github_username')
+              setGithubUsername(null)
+              setGithubUsernameFilter(null)
+              logout()
+            }}
+          >
             Sign out
           </button>
         </div>
@@ -283,7 +314,17 @@ function App() {
   const { user, loading } = useAuth()
   const [authMode, setAuthMode] = useState<AuthMode>('sign-in')
   if (loading) return null
-  return user ? <AppShell /> : <AuthPage mode={authMode} onModeChange={setAuthMode} />
+  return user ? (
+    <AppShell />
+  ) : (
+    <AuthPage
+      mode={authMode}
+      onModeChange={setAuthMode}
+      onAuthenticate={(username) => {
+        if (username) localStorage.setItem('docrot_github_username', username)
+      }}
+    />
+  )
 }
 
 export default function Root() {
