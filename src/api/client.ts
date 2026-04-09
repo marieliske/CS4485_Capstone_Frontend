@@ -1,19 +1,18 @@
-import { TOKEN_KEY } from '../auth/AuthContext'
+import { auth } from '../firebase'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
 
 export type JsonObject = Record<string, unknown>
 
-function buildHeaders(initHeaders?: HeadersInit, hasBody = false): Headers {
+async function buildHeaders(initHeaders?: HeadersInit, hasBody = false): Promise<Headers> {
   const headers = new Headers(initHeaders)
   if (hasBody && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
   }
 
-  const token = localStorage.getItem(TOKEN_KEY)
+  const token = await auth.currentUser?.getIdToken()
   if (token) {
     headers.set('Authorization', `Bearer ${token}`)
-    headers.set('X-Docrot-Token', token)
   }
 
   return headers
@@ -36,7 +35,7 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
   const hasBody = init.body !== undefined && init.body !== null
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
-    headers: buildHeaders(init.headers, hasBody),
+    headers: await buildHeaders(init.headers, hasBody),
   })
 
   if (!response.ok) throw new Error(await parseErrorMessage(response))

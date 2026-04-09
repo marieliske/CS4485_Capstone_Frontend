@@ -4,7 +4,6 @@ import { ProjectsPage } from './pages/ProjectsPage'
 import { IssuesPage } from './pages/IssuesPage'
 import { ScanHistoryPage } from './pages/ScanHistoryPage'
 import { ConfigurationPage } from './pages/ConfigurationPage'
-import { LoginPage } from './pages/LoginPage'
 import { AuthProvider, useAuth } from './auth/AuthContext'
 import { AuthPage, type AuthMode } from './pages/AuthPage'
 import { UserSettingsWireframePage } from './pages/UserSettingsWireframePage'
@@ -104,8 +103,6 @@ const navItems: Array<{ key: PageKey; label: string; icon: ReactNode }> = [
 function AppShell() {
   const { user, logout } = useAuth()
   const [activePage, setActivePage] = useState<PageKey>('dashboard')
-  const [isSignedIn, setIsSignedIn] = useState(false)
-  const [authMode, setAuthMode] = useState<AuthMode>('sign-in')
   const [focusedScanId, setFocusedScanId] = useState<string | null>(null)
 
   const navigateToPage = (page: PageKey) => {
@@ -164,23 +161,6 @@ function AppShell() {
     }
   }, [activePage, focusedScanId])
 
-  if (!isSignedIn) {
-    return (
-      <AuthPage
-        mode={authMode}
-        onAuthenticate={() => {
-          startTransition(() => {
-            setActivePage('dashboard')
-            setAuthMode('sign-in')
-            setFocusedScanId(null)
-            setIsSignedIn(true)
-          })
-        }}
-        onModeChange={setAuthMode}
-      />
-    )
-  }
-
   const topbarSearchValue =
     activePage === 'projects'
       ? 'Quick search...'
@@ -223,14 +203,14 @@ function AppShell() {
 
         <div className="app-sidebar-footer">
           <div className="user-row">
-            {user?.avatar_url ? (
-              <img src={user.avatar_url} alt={user.login} className="avatar" width="32" height="32" />
+            {user?.photoURL ? (
+              <img src={user.photoURL} alt={user.displayName ?? user.email ?? ''} className="avatar" width="32" height="32" />
             ) : (
               <span className="avatar" aria-hidden="true" />
             )}
             <div>
-              <p>{user?.name || user?.login || 'Unknown'}</p>
-              <small>{user?.login}</small>
+              <p>{user?.displayName || user?.email || 'Unknown'}</p>
+              <small>{user?.email}</small>
             </div>
           </div>
           <button type="button" className="logout-btn" onClick={logout}>
@@ -300,8 +280,10 @@ function AppShell() {
 }
 
 function App() {
-  const { token } = useAuth()
-  return token ? <AppShell /> : <LoginPage />
+  const { user, loading } = useAuth()
+  const [authMode, setAuthMode] = useState<AuthMode>('sign-in')
+  if (loading) return null
+  return user ? <AppShell /> : <AuthPage mode={authMode} onModeChange={setAuthMode} />
 }
 
 export default function Root() {
