@@ -7,7 +7,7 @@ import { IssuesPage } from './pages/IssuesPage'
 import { ScanHistoryPage } from './pages/ScanHistoryPage'
 import { ConfigurationPage } from './pages/ConfigurationPage'
 import { AuthProvider, useAuth } from './auth/AuthContext'
-import { AuthPage, type AuthMode } from './pages/AuthPage'
+import { AuthPage } from './pages/AuthPage'
 import { UserSettingsWireframePage } from './pages/UserSettingsWireframePage'
 import './App.css'
 
@@ -311,7 +311,6 @@ function AppShell() {
 
 function App() {
   const { user, loading } = useAuth()
-  const [authMode, setAuthMode] = useState<AuthMode>('sign-in')
 
   if (!firebaseConfigured) {
     return (
@@ -354,8 +353,6 @@ function App() {
     <AppShell />
   ) : (
     <AuthPage
-      mode={authMode}
-      onModeChange={setAuthMode}
       onAuthenticate={(username) => {
         if (username) localStorage.setItem('docrot_github_username', username)
       }}
