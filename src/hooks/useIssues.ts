@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { getIssues } from '../api/issues'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { getIssues, closeIssue as apiCloseIssue } from '../api/issues'
 import { getScans } from '../api/scans'
 import type { Issue, ScanReportSummary } from '../types/issue'
 
@@ -85,6 +85,7 @@ export function useIssues(scanId?: string | null) {
   const [scanReport, setScanReport] = useState<ScanReportSummary>(fallbackScanReport)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [resolvedScanId, setResolvedScanId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -105,6 +106,7 @@ export function useIssues(scanId?: string | null) {
 
         if (hasLiveData) {
           setIssues(liveIssues)
+          setResolvedScanId(selectedScan?.id ?? scanId ?? null)
           setScanReport(
             buildSummary(
               liveIssues,
@@ -143,11 +145,26 @@ export function useIssues(scanId?: string | null) {
 
   const openIssues = useMemo(() => issues.filter((issue) => issue.status !== 'closed'), [issues])
 
+  const closeIssue = useCallback(async (issueId: string) => {
+    if (!resolvedScanId) return
+    setIssues((prev) =>
+      prev.map((issue) => (issue.id === issueId ? { ...issue, status: 'closed' as const } : issue)),
+    )
+    try {
+      await apiCloseIssue(resolvedScanId, issueId)
+    } catch {
+      setIssues((prev) =>
+        prev.map((issue) => (issue.id === issueId ? { ...issue, status: 'open' as const } : issue)),
+      )
+    }
+  }, [resolvedScanId])
+
   return {
     issues,
     scanReport,
     loading,
     error,
     openIssues,
+    closeIssue,
   }
 }

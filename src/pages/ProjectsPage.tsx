@@ -1,9 +1,10 @@
-import { useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { useDeferredValue, useMemo, useState } from 'react'
 import { getRepos, getScanRunsForRepo } from '../api/firestore'
 import type { ScanRecord } from '../api/scans'
 
 interface ProjectsPageProps {
   onInspectProject?: (scanId?: string) => void
+  searchQuery?: string
 }
 
 interface ProjectRow {
@@ -99,13 +100,14 @@ function toProjectRow(repository: string, scans: ScanRecord[]): ProjectRow {
   }
 }
 
-export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
+export function ProjectsPage({ onInspectProject, searchQuery }: ProjectsPageProps) {
   const [projectRows, setProjectRows] = useState<ProjectRow[]>([])
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const deferredQuery = useDeferredValue(query)
+  const activeQuery = searchQuery !== undefined && searchQuery !== '' ? searchQuery : query
+  const deferredQuery = useDeferredValue(activeQuery)
 
   useEffect(() => {
     let cancelled = false
@@ -193,7 +195,7 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
           className="scan-history-search-input"
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search project or repository path"
-          value={query}
+          value={activeQuery}
         />
         <span className="projects-filter-btn">Showing {filteredRows.length} projects</span>
       </div>

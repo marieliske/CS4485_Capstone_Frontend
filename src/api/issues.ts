@@ -1,5 +1,6 @@
 import { asObject } from './client'
 import { getScans, getScanIssues } from './scans'
+import { closeIssue as firestoreCloseIssue } from './firestore'
 import type { Issue } from '../types/issue'
 
 function parsePriority(value: unknown): Issue['priority'] {
@@ -139,6 +140,10 @@ function normalizeIssue(rawPayload: unknown, index: number, scanId: string): Iss
     createdAt,
     updatedAt,
   }
+}
+
+export async function closeIssue(scanId: string, issueId: string): Promise<void> {
+  await firestoreCloseIssue(scanId, issueId)
 }
 
 export async function getIssues(scanId?: string) {

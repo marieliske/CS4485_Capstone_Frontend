@@ -6,6 +6,7 @@ import { Card } from '../components/shared/Card'
 interface ScanHistoryPageProps {
   initialSelectedScanId?: string | null
   onOpenIssuesForScan?: (scanId: string) => void
+  searchQuery?: string
 }
 
 interface ScanDetailState {
@@ -77,7 +78,7 @@ function summarizeIssue(record: ScanIssueRecord, index: number): string {
   )
 }
 
-export function ScanHistoryPage({ initialSelectedScanId, onOpenIssuesForScan }: ScanHistoryPageProps) {
+export function ScanHistoryPage({ initialSelectedScanId, onOpenIssuesForScan, searchQuery }: ScanHistoryPageProps) {
   const [scans, setScans] = useState<ScanRecord[]>([])
   const [selectedScanId, setSelectedScanId] = useState<string | null>(initialSelectedScanId ?? null)
   const [loading, setLoading] = useState(true)
@@ -92,7 +93,8 @@ export function ScanHistoryPage({ initialSelectedScanId, onOpenIssuesForScan }: 
     error: null,
   })
 
-  const deferredQuery = useDeferredValue(query)
+  const activeQuery = searchQuery !== undefined && searchQuery !== '' ? searchQuery : query
+  const deferredQuery = useDeferredValue(activeQuery)
 
   useEffect(() => {
     let cancelled = false

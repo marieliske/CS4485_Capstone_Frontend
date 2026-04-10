@@ -5,6 +5,7 @@ import {
   getDocs,
   orderBy,
   query,
+  updateDoc,
   type DocumentData,
 } from 'firebase/firestore'
 import { db } from '../firebase'
@@ -149,6 +150,18 @@ export async function getIssuesForScan(scanId: string): Promise<DocumentData[]> 
     }
   }
   return []
+}
+
+export async function closeIssue(scanId: string, issueId: string): Promise<void> {
+  const repos = await getRepos()
+  for (const repo of repos) {
+    const flagRef = doc(db, 'repos', repo.id, 'scan_runs', scanId, 'flags', issueId)
+    const snap = await getDoc(flagRef)
+    if (snap.exists()) {
+      await updateDoc(flagRef, { status: 'closed' })
+      return
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

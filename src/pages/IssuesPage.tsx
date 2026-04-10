@@ -8,15 +8,17 @@ import { useIssues } from '../hooks/useIssues'
 interface IssuesPageProps {
   initialScanId?: string | null
   onOpenHistory?: () => void
+  searchQuery?: string
 }
 
-export function IssuesPage({ initialScanId, onOpenHistory }: IssuesPageProps) {
-  const { issues, scanReport, loading, error, openIssues } = useIssues(initialScanId)
+export function IssuesPage({ initialScanId, onOpenHistory, searchQuery }: IssuesPageProps) {
+  const { issues, scanReport, loading, error, openIssues, closeIssue } = useIssues(initialScanId)
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('all')
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null)
 
-  const deferredQuery = useDeferredValue(query)
+  const activeQuery = searchQuery !== undefined && searchQuery !== '' ? searchQuery : query
+  const deferredQuery = useDeferredValue(activeQuery)
 
   const filteredIssues = useMemo(() => {
     const normalizedQuery = deferredQuery.trim().toLowerCase()
@@ -86,7 +88,7 @@ export function IssuesPage({ initialScanId, onOpenHistory }: IssuesPageProps) {
       </div>
 
       <Card className="issues-filter-card">
-        <IssueFilters query={query} status={status} onQueryChange={setQuery} onStatusChange={setStatus} />
+        <IssueFilters query={activeQuery} status={status} onQueryChange={setQuery} onStatusChange={setStatus} />
         <div className="issues-filter-meta">
           <span>
             Showing {filteredIssues.length} of {issues.length} issues
@@ -102,7 +104,7 @@ export function IssuesPage({ initialScanId, onOpenHistory }: IssuesPageProps) {
           ) : filteredIssues.length === 0 ? (
             <div className="page-placeholder">No issues match your current filters.</div>
           ) : (
-            <IssueTable issues={filteredIssues} onSelect={(issue) => setSelectedIssueId(issue.id)} />
+            <IssueTable issues={filteredIssues} onSelect={(issue) => setSelectedIssueId(issue.id)} onClose={closeIssue} />
           )}
         </section>
 
