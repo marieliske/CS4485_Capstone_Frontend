@@ -61,22 +61,22 @@ const navItems: Array<{ key: PageKey; label: string; icon: ReactNode }> = [
     ),
   },
   {
-    key: 'issues',
-    label: 'Issues',
-    icon: (
-      <NavIcon>
-        <path d="M12 4 21 19H3z" />
-        <path d="M12 9v4M12 16h.01" />
-      </NavIcon>
-    ),
-  },
-  {
     key: 'history',
     label: 'Scan History',
     icon: (
       <NavIcon>
         <path d="M12 3a9 9 0 1 1-6.4 2.6" />
         <path d="M12 7v5l3 2" />
+      </NavIcon>
+    ),
+  },
+  {
+    key: 'issues',
+    label: 'Issues',
+    icon: (
+      <NavIcon>
+        <path d="M12 4 21 19H3z" />
+        <path d="M12 9v4M12 16h.01" />
       </NavIcon>
     ),
   },
@@ -183,9 +183,10 @@ function AppShell() {
         <div className="app-brand">
           <span className="app-brand-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <circle cx="12" cy="12" r="8" />
-              <path d="M12 8v8" />
-              <path d="M8 12h8" />
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <path d="M14 2v6h6" />
+              <circle cx="14" cy="15.5" r="3.5" />
+              <path d="M14 13.5v2l1.5 1" />
             </svg>
           </span>
           <div>

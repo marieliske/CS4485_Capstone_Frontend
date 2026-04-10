@@ -73,7 +73,7 @@ function toProjectRow(repository: string, scans: ScanRecord[]): ProjectRow {
   const averageScore =
     sortedScans.length === 0
       ? 0
-      : Math.round(sortedScans.reduce((sum, scan) => sum + clampScore(scan.rot_score), 0) / sortedScans.length)
+      : clampScore(sortedScans[0].rot_score)
 
   let statusTone: ProjectRow['statusTone'] = 'healthy'
   if (!latestScan) {

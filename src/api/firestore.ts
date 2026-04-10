@@ -136,16 +136,49 @@ export async function getScanRunById(scanId: string): Promise<ScanRecord | null>
 }
 
 // ---------------------------------------------------------------------------
-// Issues  —  repos/{repoId}/scan_runs/{scanId}/issues/{issueId}
+// Flags  —  repos/{repoId}/scan_runs/{scanId}/flags/{flagId}
 // ---------------------------------------------------------------------------
 
 export async function getIssuesForScan(scanId: string): Promise<DocumentData[]> {
   const repos = await getRepos()
   for (const repo of repos) {
-    const issuesRef = collection(db, 'repos', repo.id, 'scan_runs', scanId, 'issues')
+    const issuesRef = collection(db, 'repos', repo.id, 'scan_runs', scanId, 'flags')
     const snap = await getDocs(issuesRef)
     if (!snap.empty) {
       return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    }
+  }
+  return []
+}
+
+// ---------------------------------------------------------------------------
+// AI suggestions  —  repos/{repoId}/scan_runs/{scanId}/ai_suggestions
+// ---------------------------------------------------------------------------
+
+export interface AISuggestionDoc {
+  id: string
+  doc_path: string
+  suggestion: string
+  model_used: string
+  triggered_by: string[]
+}
+
+export async function getAISuggestionsForScan(scanId: string): Promise<AISuggestionDoc[]> {
+  const repos = await getRepos()
+  for (const repo of repos) {
+    const ref = collection(db, 'repos', repo.id, 'scan_runs', scanId, 'ai_suggestions')
+    const snap = await getDocs(ref)
+    if (!snap.empty) {
+      return snap.docs.map((d) => {
+        const data = d.data()
+        return {
+          id: d.id,
+          doc_path: (data.doc_path ?? '') as string,
+          suggestion: (data.suggestion ?? '') as string,
+          model_used: (data.model_used ?? '') as string,
+          triggered_by: (data.triggered_by ?? []) as string[],
+        }
+      })
     }
   }
   return []
