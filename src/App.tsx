@@ -1,4 +1,5 @@
 import { startTransition, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { firebaseConfigured, firebaseMissingEnvKeys } from './firebase'
 import { setGithubUsernameFilter } from './api/firestore'
 import { DashboardPage } from './pages/DashboardPage'
 import { ProjectsPage } from './pages/ProjectsPage'
@@ -95,6 +96,7 @@ function AppShell() {
   const { user, logout } = useAuth()
   const [activePage, setActivePage] = useState<PageKey>('dashboard')
   const [focusedScanId, setFocusedScanId] = useState<string | null>(null)
+
   useEffect(() => {
     if (user) {
       const ghProvider = user.providerData.find((p) => p.providerId === 'github.com')
@@ -309,7 +311,44 @@ function AppShell() {
 function App() {
   const { user, loading } = useAuth()
   const [authMode, setAuthMode] = useState<AuthMode>('sign-in')
+
+  if (!firebaseConfigured) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+          background: '#0b1220',
+          color: '#f3f7ff',
+          padding: '1.5rem',
+        }}
+      >
+        <div
+          style={{
+            width: '100%',
+            maxWidth: '740px',
+            border: '1px solid #1d2a43',
+            borderRadius: '12px',
+            background: '#111a2b',
+            padding: '1.25rem 1.4rem',
+          }}
+        >
+          <h2 style={{ marginBottom: '0.65rem' }}>Firebase environment variables are missing</h2>
+          <p style={{ color: '#8ea2c1', marginBottom: '0.75rem' }}>
+            Add the missing keys to <code>.env</code>, then restart the Vite dev server.
+          </p>
+          <pre style={{ margin: 0, color: '#dce9ff', whiteSpace: 'pre-wrap' }}>
+            {firebaseMissingEnvKeys.map((key) => `${key}=...`).join('\n')}
+          </pre>
+        </div>
+      </div>
+    )
+  }
+
   if (loading) return null
+
   return user ? (
     <AppShell />
   ) : (
