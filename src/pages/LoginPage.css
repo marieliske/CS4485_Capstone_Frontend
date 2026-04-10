@@ -1,0 +1,59 @@
+.login-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: var(--bg-base, #0f1117);
+}
+
+.login-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 2.5rem 2rem;
+  background: var(--bg-surface, #1a1d27);
+  border: 1px solid var(--border, #2a2d3a);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 360px;
+  text-align: center;
+}
+
+.login-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--text-primary, #e2e8f0);
+}
+
+.login-brand h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.login-subtitle {
+  color: var(--text-muted, #8892a4);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.github-login-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 1.4rem;
+  background: var(--text-primary, #e2e8f0);
+  color: #0f1117;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+
+.github-login-btn:hover {
+  opacity: 0.85;
+}

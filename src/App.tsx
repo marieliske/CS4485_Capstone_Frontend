@@ -1,12 +1,12 @@
 import { startTransition, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { onAuthStateChanged, signOut, type User } from 'firebase/auth'
-import { auth, firebaseConfigured, firebaseMissingEnvKeys } from './firebase'
+import { firebaseConfigured, firebaseMissingEnvKeys } from './firebase'
 import { setGithubUsernameFilter } from './api/firestore'
 import { DashboardPage } from './pages/DashboardPage'
 import { ProjectsPage } from './pages/ProjectsPage'
 import { IssuesPage } from './pages/IssuesPage'
 import { ScanHistoryPage } from './pages/ScanHistoryPage'
 import { ConfigurationPage } from './pages/ConfigurationPage'
+import { AuthProvider, useAuth } from './auth/AuthContext'
 import { AuthPage, type AuthMode } from './pages/AuthPage'
 import { UserSettingsWireframePage } from './pages/UserSettingsWireframePage'
 import './App.css'
@@ -92,40 +92,24 @@ const navItems: Array<{ key: PageKey; label: string; icon: ReactNode }> = [
   },
 ]
 
-function App() {
+function AppShell() {
+  const { user, logout } = useAuth()
   const [activePage, setActivePage] = useState<PageKey>('dashboard')
-  const [user, setUser] = useState<User | null>(null)
-  const [githubUsername, setGithubUsername] = useState<string | null>(null)
-  const [authLoading, setAuthLoading] = useState(true)
-  const [authMode, setAuthMode] = useState<AuthMode>('sign-in')
   const [focusedScanId, setFocusedScanId] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!firebaseConfigured) {
-      setAuthLoading(false)
-      return
-    }
-
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser)
-      // For returning users, try to extract GitHub username from provider data
-      if (firebaseUser && !githubUsername) {
-        const ghProvider = firebaseUser.providerData.find((p) => p.providerId === 'github.com')
-        if (ghProvider) {
-          const stored = localStorage.getItem('docrot_github_username')
-          if (stored) {
-            setGithubUsername(stored)
-            setGithubUsernameFilter(stored)
-          }
+    if (user) {
+      const ghProvider = user.providerData.find((p) => p.providerId === 'github.com')
+      if (ghProvider) {
+        const stored = localStorage.getItem('docrot_github_username')
+        if (stored) {
+          setGithubUsernameFilter(stored)
         }
       }
-      if (!firebaseUser) {
-        setGithubUsernameFilter(null)
-      }
-      setAuthLoading(false)
-    })
-    return unsubscribe
-  }, [])
+    } else {
+      setGithubUsernameFilter(null)
+    }
+  }, [user])
 
   const navigateToPage = (page: PageKey) => {
     startTransition(() => {
@@ -184,69 +168,6 @@ function App() {
     }
   }, [activePage, focusedScanId])
 
-  if (authLoading) {
-    return <div className="page-placeholder" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#8ea2c1' }}>Loading...</div>
-  }
-
-  if (!firebaseConfigured) {
-    return (
-      <div
-        className="page-placeholder"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: '100vh',
-          background: '#0b1220',
-          color: '#f3f7ff',
-          padding: '1.5rem',
-        }}
-      >
-        <div
-          style={{
-            width: '100%',
-            maxWidth: '740px',
-            border: '1px solid #1d2a43',
-            borderRadius: '12px',
-            background: '#111a2b',
-            padding: '1.25rem 1.4rem',
-          }}
-        >
-          <h2 style={{ marginBottom: '0.65rem' }}>Firebase environment variables are missing</h2>
-          <p style={{ color: '#8ea2c1', marginBottom: '0.75rem' }}>
-            Add the missing keys to <code>.env.local</code>, then restart the Vite dev server.
-          </p>
-          <pre style={{ margin: 0, color: '#dce9ff', whiteSpace: 'pre-wrap' }}>
-{firebaseMissingEnvKeys
-  .map((key) => `VITE_FIREBASE_${key.replace(/[A-Z]/g, (m) => `_${m}`).toUpperCase().replace(/^_/, '')}=...`)
-  .join('\n')}
-          </pre>
-        </div>
-      </div>
-    )
-  }
-
-  if (!user) {
-    return (
-      <AuthPage
-        mode={authMode}
-        onAuthenticate={(username) => {
-          if (username) {
-            setGithubUsername(username)
-            setGithubUsernameFilter(username)
-            localStorage.setItem('docrot_github_username', username)
-          }
-          startTransition(() => {
-            setActivePage('dashboard')
-            setAuthMode('sign-in')
-            setFocusedScanId(null)
-          })
-        }}
-        onModeChange={setAuthMode}
-      />
-    )
-  }
-
   const topbarSearchValue =
     activePage === 'projects'
       ? 'Quick search...'
@@ -256,66 +177,73 @@ function App() {
           ? 'Search user settings...'
           : 'Search documentation...'
 
- return (
-  <div className="app-shell">
-    <aside className="app-sidebar">
-      <div className="app-brand">
-        <span className="app-brand-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-            <circle cx="12" cy="12" r="8" />
-            <path d="M12 8v8" />
-            <path d="M8 12h8" />
-          </svg>
-        </span>
-        <div>
-          <h1>DocRot</h1>
-          <p>Detector Admin</p>
+  return (
+    <div className="app-shell">
+      <aside className="app-sidebar">
+        <div className="app-brand">
+          <span className="app-brand-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <circle cx="12" cy="12" r="8" />
+              <path d="M12 8v8" />
+              <path d="M8 12h8" />
+            </svg>
+          </span>
+          <div>
+            <h1>DocRot</h1>
+            <p>Detector Admin</p>
+          </div>
         </div>
-      </div>
 
-      <nav className="app-nav">
-        {navItems.map((item) => (
+        <nav className="app-nav">
+          {navItems.map((item) => (
+            <button
+              key={item.key}
+              aria-current={activePage === item.key ? 'page' : undefined}
+              className={activePage === item.key ? 'app-nav-link active' : 'app-nav-link'}
+              onClick={() => navigateToPage(item.key)}
+              type="button"
+            >
+              {item.icon}
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="app-sidebar-footer">
           <button
-            key={item.key}
-            aria-current={activePage === item.key ? 'page' : undefined}
-            className={activePage === item.key ? 'app-nav-link active' : 'app-nav-link'}
-            onClick={() => navigateToPage(item.key)}
             type="button"
+            className={activePage === 'wf-user-settings' ? 'app-nav-link active' : 'app-nav-link'}
+            onClick={() => navigateToPage('wf-user-settings')}
+            style={{ width: '100%', marginBottom: '0.75rem' }}
           >
-            {item.icon}
-            <span>{item.label}</span>
+            <NavIcon>
+              <circle cx="12" cy="8" r="3" />
+              <path d="M6 19c1.4-3 3.5-4.5 6-4.5s4.6 1.5 6 4.5" />
+            </NavIcon>
+            <span>User Settings</span>
           </button>
-        ))}
-      </nav>
 
-      <div className="app-sidebar-footer">
-        <button
-          type="button"
-          className={activePage === 'wf-user-settings' ? 'app-nav-link active' : 'app-nav-link'}
-          onClick={() => navigateToPage('wf-user-settings')}
-          style={{ width: '100%', marginBottom: '0.75rem' }}
-        >
-          <NavIcon>
-            <circle cx="12" cy="8" r="3" />
-            <path d="M6 19c1.4-3 3.5-4.5 6-4.5s4.6 1.5 6 4.5" />
-          </NavIcon>
-          <span>User Settings</span>
-        </button>
-
-        <div className="user-row">
-            <span className="avatar" aria-hidden="true" />
+          <div className="user-row">
+            {user?.photoURL ? (
+              <img src={user.photoURL} alt={user.displayName ?? user.email ?? ''} className="avatar" width="32" height="32" />
+            ) : (
+              <span className="avatar" aria-hidden="true" />
+            )}
             <div>
-              <p>{user.displayName ?? user.email ?? 'User'}</p>
-              <small>{user.email ?? ''}</small>
+              <p>{user?.displayName ?? user?.email ?? 'User'}</p>
+              <small>{user?.email ?? ''}</small>
             </div>
           </div>
           <button
             type="button"
-            className="app-nav-link"
-            onClick={() => { localStorage.removeItem('docrot_github_username'); setGithubUsername(null); setGithubUsernameFilter(null); void signOut(auth) }}
-            style={{ marginTop: '0.5rem', width: '100%' }}
+            className="logout-btn"
+            onClick={() => {
+              localStorage.removeItem('docrot_github_username')
+              setGithubUsernameFilter(null)
+              logout()
+            }}
           >
-            Sign Out
+            Sign out
           </button>
         </div>
       </aside>
@@ -380,4 +308,64 @@ function App() {
   )
 }
 
-export default App
+function App() {
+  const { user, loading } = useAuth()
+  const [authMode, setAuthMode] = useState<AuthMode>('sign-in')
+
+  if (!firebaseConfigured) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+          background: '#0b1220',
+          color: '#f3f7ff',
+          padding: '1.5rem',
+        }}
+      >
+        <div
+          style={{
+            width: '100%',
+            maxWidth: '740px',
+            border: '1px solid #1d2a43',
+            borderRadius: '12px',
+            background: '#111a2b',
+            padding: '1.25rem 1.4rem',
+          }}
+        >
+          <h2 style={{ marginBottom: '0.65rem' }}>Firebase environment variables are missing</h2>
+          <p style={{ color: '#8ea2c1', marginBottom: '0.75rem' }}>
+            Add the missing keys to <code>.env</code>, then restart the Vite dev server.
+          </p>
+          <pre style={{ margin: 0, color: '#dce9ff', whiteSpace: 'pre-wrap' }}>
+            {firebaseMissingEnvKeys.map((key) => `${key}=...`).join('\n')}
+          </pre>
+        </div>
+      </div>
+    )
+  }
+
+  if (loading) return null
+
+  return user ? (
+    <AppShell />
+  ) : (
+    <AuthPage
+      mode={authMode}
+      onModeChange={setAuthMode}
+      onAuthenticate={(username) => {
+        if (username) localStorage.setItem('docrot_github_username', username)
+      }}
+    />
+  )
+}
+
+export default function Root() {
+  return (
+    <AuthProvider>
+      <App />
+    </AuthProvider>
+  )
+}
