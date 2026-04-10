@@ -1,6 +1,6 @@
 import { startTransition, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { onAuthStateChanged, signOut, type User } from 'firebase/auth'
-import { auth } from './firebase'
+import { auth, firebaseConfigured, firebaseMissingEnvKeys } from './firebase'
 import { setGithubUsernameFilter } from './api/firestore'
 import { DashboardPage } from './pages/DashboardPage'
 import { ProjectsPage } from './pages/ProjectsPage'
@@ -101,6 +101,11 @@ function App() {
   const [focusedScanId, setFocusedScanId] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!firebaseConfigured) {
+      setAuthLoading(false)
+      return
+    }
+
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser)
       // For returning users, try to extract GitHub username from provider data
@@ -181,6 +186,44 @@ function App() {
 
   if (authLoading) {
     return <div className="page-placeholder" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#8ea2c1' }}>Loading...</div>
+  }
+
+  if (!firebaseConfigured) {
+    return (
+      <div
+        className="page-placeholder"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+          background: '#0b1220',
+          color: '#f3f7ff',
+          padding: '1.5rem',
+        }}
+      >
+        <div
+          style={{
+            width: '100%',
+            maxWidth: '740px',
+            border: '1px solid #1d2a43',
+            borderRadius: '12px',
+            background: '#111a2b',
+            padding: '1.25rem 1.4rem',
+          }}
+        >
+          <h2 style={{ marginBottom: '0.65rem' }}>Firebase environment variables are missing</h2>
+          <p style={{ color: '#8ea2c1', marginBottom: '0.75rem' }}>
+            Add the missing keys to <code>.env.local</code>, then restart the Vite dev server.
+          </p>
+          <pre style={{ margin: 0, color: '#dce9ff', whiteSpace: 'pre-wrap' }}>
+{firebaseMissingEnvKeys
+  .map((key) => `VITE_FIREBASE_${key.replace(/[A-Z]/g, (m) => `_${m}`).toUpperCase().replace(/^_/, '')}=...`)
+  .join('\n')}
+          </pre>
+        </div>
+      </div>
+    )
   }
 
   if (!user) {
@@ -269,7 +312,7 @@ function App() {
           <button
             type="button"
             className="app-nav-link"
-            onClick={() => { localStorage.removeItem('docrot_github_username'); setGithubUsername(null); setGithubUsernameFilter(null); signOut(auth) }}
+            onClick={() => { localStorage.removeItem('docrot_github_username'); setGithubUsername(null); setGithubUsernameFilter(null); void signOut(auth) }}
             style={{ marginTop: '0.5rem', width: '100%' }}
           >
             Sign Out
