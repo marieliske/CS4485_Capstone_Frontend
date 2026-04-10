@@ -95,15 +95,12 @@ function AppShell() {
   const { user, logout } = useAuth()
   const [activePage, setActivePage] = useState<PageKey>('dashboard')
   const [focusedScanId, setFocusedScanId] = useState<string | null>(null)
-  const [githubUsername, setGithubUsername] = useState<string | null>(null)
-
   useEffect(() => {
     if (user) {
       const ghProvider = user.providerData.find((p) => p.providerId === 'github.com')
       if (ghProvider) {
         const stored = localStorage.getItem('docrot_github_username')
         if (stored) {
-          setGithubUsername(stored)
           setGithubUsernameFilter(stored)
         }
       }
@@ -240,7 +237,6 @@ function AppShell() {
             className="logout-btn"
             onClick={() => {
               localStorage.removeItem('docrot_github_username')
-              setGithubUsername(null)
               setGithubUsernameFilter(null)
               logout()
             }}
