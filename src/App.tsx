@@ -1,4 +1,5 @@
-import { startTransition, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Profiler, startTransition, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { onRenderCallback } from './utils/perf'
 import { firebaseConfigured, firebaseMissingEnvKeys } from './firebase'
 import { setGithubUsernameFilter } from './api/firestore'
 import { DashboardPage } from './pages/DashboardPage'
@@ -308,7 +309,11 @@ function AppShell() {
             )}
           </div>
         </header>
-        <section className="page-container">{pageContent}</section>
+        <section className="page-container">
+          <Profiler id={activePage} onRender={onRenderCallback}>
+            {pageContent}
+          </Profiler>
+        </section>
       </main>
     </div>
   )

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getIssues, closeIssue as apiCloseIssue } from '../api/issues'
 import { getScans } from '../api/scans'
+import { measure } from '../utils/perf'
 import type { Issue, ScanReportSummary } from '../types/issue'
 
 const fallbackScanReport: ScanReportSummary = {
@@ -92,10 +93,12 @@ export function useIssues(scanId?: string | null) {
 
     async function loadIssues() {
       try {
-        const [liveIssues, scans] = await Promise.all([
-          getIssues(scanId ?? undefined),
-          getScans().catch(() => []),
-        ])
+        const [liveIssues, scans] = await measure(`useIssues:load${scanId ? `:${scanId}` : ''}`, () =>
+          Promise.all([
+            getIssues(scanId ?? undefined),
+            getScans().catch(() => []),
+          ])
+        )
 
         if (cancelled) {
           return

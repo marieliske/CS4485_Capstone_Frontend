@@ -9,6 +9,7 @@ import {
   type DocumentData,
 } from 'firebase/firestore'
 import { db } from '../firebase'
+import { measure } from '../utils/perf'
 import type { ScanRecord } from './scans'
 
 // ---------------------------------------------------------------------------
@@ -62,7 +63,7 @@ function belongsToUser(repo: RepoRecord): boolean {
 }
 
 export async function getRepos(): Promise<RepoRecord[]> {
-  const snapshot = await getDocs(collection(db, 'repos'))
+  const snapshot = await measure('getRepos', () => getDocs(collection(db, 'repos')))
   const all = snapshot.docs.map((d) => toRepoRecord(d.id, d.data()))
   return all.filter(belongsToUser)
 }
@@ -103,7 +104,9 @@ export async function getAllScanRuns(): Promise<ScanRecord[]> {
 
   for (const repo of repos) {
     const scansRef = collection(db, 'repos', repo.id, 'scan_runs')
-    const scansSnap = await getDocs(query(scansRef, orderBy('scanned_at', 'desc')))
+    const scansSnap = await measure(`getAllScanRuns:${repo.id}`, () =>
+      getDocs(query(scansRef, orderBy('scanned_at', 'desc')))
+    )
     for (const scanDoc of scansSnap.docs) {
       allScans.push(toScanRecord(scanDoc.id, scanDoc.data(), repo.id))
     }
@@ -144,7 +147,7 @@ export async function getIssuesForScan(scanId: string): Promise<DocumentData[]> 
   const repos = await getRepos()
   for (const repo of repos) {
     const issuesRef = collection(db, 'repos', repo.id, 'scan_runs', scanId, 'flags')
-    const snap = await getDocs(issuesRef)
+    const snap = await measure(`getIssuesForScan:${repo.id}`, () => getDocs(issuesRef))
     if (!snap.empty) {
       return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
     }
@@ -180,7 +183,7 @@ export async function getAISuggestionsForScan(scanId: string): Promise<AISuggest
   const repos = await getRepos()
   for (const repo of repos) {
     const ref = collection(db, 'repos', repo.id, 'scan_runs', scanId, 'ai_suggestions')
-    const snap = await getDocs(ref)
+    const snap = await measure(`getAISuggestionsForScan:${repo.id}`, () => getDocs(ref))
     if (!snap.empty) {
       return snap.docs.map((d) => {
         const data = d.data()
