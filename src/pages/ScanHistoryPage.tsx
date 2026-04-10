@@ -1,6 +1,6 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { asObject, type JsonObject } from '../api/client'
-import { getScanIssues, getScanReport, getScans, type ScanIssueRecord, type ScanRecord } from '../api/scans'
+import { getAISuggestions, getScanIssues, getScanReport, getScans, type AISuggestionRecord, type ScanIssueRecord, type ScanRecord } from '../api/scans'
 import { Card } from '../components/shared/Card'
 
 interface ScanHistoryPageProps {
@@ -11,6 +11,7 @@ interface ScanHistoryPageProps {
 interface ScanDetailState {
   scanId: string | null
   issues: ScanIssueRecord[]
+  aiSuggestions: AISuggestionRecord[]
   report: JsonObject
   error: string | null
 }
@@ -86,6 +87,7 @@ export function ScanHistoryPage({ initialSelectedScanId, onOpenIssuesForScan }: 
   const [detailState, setDetailState] = useState<ScanDetailState>({
     scanId: null,
     issues: [],
+    aiSuggestions: [],
     report: {},
     error: null,
   })
@@ -153,15 +155,17 @@ export function ScanHistoryPage({ initialSelectedScanId, onOpenIssuesForScan }: 
 
     async function loadDetails() {
       try {
-        const [issues, report] = await Promise.all([
+        const [issues, report, aiSuggestions] = await Promise.all([
           getScanIssues(activeSelectedScanId),
           getScanReport(activeSelectedScanId).catch(() => ({} as JsonObject)),
+          getAISuggestions(activeSelectedScanId).catch(() => [] as AISuggestionRecord[]),
         ])
 
         if (!cancelled) {
           setDetailState({
             scanId: activeSelectedScanId,
             issues,
+            aiSuggestions,
             report,
             error: null,
           })
@@ -171,6 +175,7 @@ export function ScanHistoryPage({ initialSelectedScanId, onOpenIssuesForScan }: 
           setDetailState({
             scanId: activeSelectedScanId,
             issues: [],
+            aiSuggestions: [],
             report: {},
             error: err instanceof Error ? err.message : 'Unable to load scan details.',
           })
@@ -360,6 +365,34 @@ export function ScanHistoryPage({ initialSelectedScanId, onOpenIssuesForScan }: 
                       <li key={`${activeSelectedScanId}-issue-${index}`}>{summarizeIssue(issue, index)}</li>
                     ))}
                   </ul>
+                )}
+              </div>
+
+              <div className="detail-section">
+                <p className="detail-label">AI Suggestions</p>
+                {detailLoading ? (
+                  <p className="detail-copy">Loading AI suggestions…</p>
+                ) : detailState.aiSuggestions.length === 0 ? (
+                  <p className="detail-copy">No AI suggestions available for this scan.</p>
+                ) : (
+                  <div className="ai-suggestions-list">
+                    {detailState.aiSuggestions.map((s) => (
+                      <details key={s.id} className="ai-suggestion-item">
+                        <summary className="ai-suggestion-header">
+                          <span className="ai-suggestion-path">{s.doc_path}</span>
+                          <span className="ai-suggestion-badge">{s.model_used || 'AI'}</span>
+                        </summary>
+                        <div className="ai-suggestion-body">
+                          {s.triggered_by.length > 0 && (
+                            <p className="ai-suggestion-triggers">
+                              <strong>Triggered by:</strong> {s.triggered_by.join(', ')}
+                            </p>
+                          )}
+                          <p className="ai-suggestion-text">{s.suggestion}</p>
+                        </div>
+                      </details>
+                    ))}
+                  </div>
                 )}
               </div>
 

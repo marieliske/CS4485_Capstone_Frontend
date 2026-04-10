@@ -1,4 +1,4 @@
-import { getAllScanRuns, getScanRunById, getIssuesForScan } from './firestore'
+import { getAllScanRuns, getScanRunById, getIssuesForScan, getAISuggestionsForScan, type AISuggestionDoc } from './firestore'
 import type { JsonObject } from './client'
 
 export interface ScanRecord {
@@ -24,6 +24,8 @@ export interface ScanIssueRecord {
 export interface ScanDocRecord {
   [key: string]: unknown
 }
+
+export type AISuggestionRecord = AISuggestionDoc
 
 export interface FingerprintSummary {
   [key: string]: unknown
@@ -59,6 +61,10 @@ export async function getScanReport(scanId: string): Promise<JsonObject> {
     repo_path: scan.repo_path,
     commit_sha: scan.commit_sha,
   } as unknown as JsonObject
+}
+
+export async function getAISuggestions(scanId: string): Promise<AISuggestionRecord[]> {
+  return getAISuggestionsForScan(scanId)
 }
 
 export async function getFingerprintSummary(): Promise<FingerprintSummary> {
