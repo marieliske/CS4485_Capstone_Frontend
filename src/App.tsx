@@ -61,22 +61,22 @@ const navItems: Array<{ key: PageKey; label: string; icon: ReactNode }> = [
     ),
   },
   {
-    key: 'issues',
-    label: 'Issues',
-    icon: (
-      <NavIcon>
-        <path d="M12 4 21 19H3z" />
-        <path d="M12 9v4M12 16h.01" />
-      </NavIcon>
-    ),
-  },
-  {
     key: 'history',
     label: 'Scan History',
     icon: (
       <NavIcon>
         <path d="M12 3a9 9 0 1 1-6.4 2.6" />
         <path d="M12 7v5l3 2" />
+      </NavIcon>
+    ),
+  },
+  {
+    key: 'issues',
+    label: 'Issues',
+    icon: (
+      <NavIcon>
+        <path d="M12 4 21 19H3z" />
+        <path d="M12 9v4M12 16h.01" />
       </NavIcon>
     ),
   },

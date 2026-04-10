@@ -152,6 +152,31 @@
   font-size: 0.72rem;
 }
 
+.nav-avatar {
+  border-radius: 999px;
+  flex-shrink: 0;
+  object-fit: cover;
+}
+
+.logout-btn {
+  background: transparent;
+  border: 1px solid #1f3355;
+  border-radius: 6px;
+  color: #8ca5c8;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+  margin-top: 8px;
+  padding: 6px 0;
+  transition: background 0.15s, color 0.15s;
+  width: 100%;
+}
+
+.logout-btn:hover {
+  background: #1a2d4d;
+  color: #d3e1f4;
+}
+
 .app-main {
   padding: 18px 24px 24px;
 }
@@ -3844,8 +3869,10 @@
 
 .wf-settings-profile-avatar {
   border: 3px solid rgba(240, 235, 220, 0.9);
+  border-radius: 999px;
   font-size: 1rem;
   height: 58px;
+  object-fit: cover;
   width: 58px;
 }
 
