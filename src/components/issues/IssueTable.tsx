@@ -19,6 +19,7 @@ export function IssueTable({ issues, onSelect }: IssueTableProps) {
 
     return 'danger'
   }
+  // test change
 
   return (
     <Table
@@ -42,22 +43,51 @@ export function IssueTable({ issues, onSelect }: IssueTableProps) {
           key: 'priority',
           label: 'Severity',
           render: (issue) => {
-            const variant = issue.priority === 'high' ? 'danger' : issue.priority === 'medium' ? 'warning' : 'info'
+            const variant =
+              issue.priority === 'high'
+                ? 'danger'
+                : issue.priority === 'medium'
+                ? 'warning'
+                : 'info'
             return <Badge variant={variant}>{issue.priority}</Badge>
           },
         },
         {
           key: 'status',
           label: 'Status',
-          render: (issue) => <Badge variant={getStatusVariant(issue.status)}>{issue.status}</Badge>,
+          render: (issue) => (
+            <Badge variant={getStatusVariant(issue.status)}>
+              {issue.status}
+            </Badge>
+          ),
         },
         {
           key: 'id',
           label: 'Actions',
           render: (issue) => (
-            <button className="btn btn-ghost" onClick={() => onSelect(issue)} type="button">
-              View
-            </button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                className="btn btn-ghost"
+                onClick={() => onSelect(issue)}
+                type="button"
+              >
+                View
+              </button>
+
+              <button
+                className="btn btn-ghost"
+                onClick={() =>
+                  alert(
+                    issue.status === 'closed'
+                      ? 'Issue reopened'
+                      : 'Issue resolved'
+                  )
+                }
+                type="button"
+              >
+                {issue.status === 'closed' ? 'Reopen' : 'Resolve'}
+              </button>
+            </div>
           ),
         },
       ]}
