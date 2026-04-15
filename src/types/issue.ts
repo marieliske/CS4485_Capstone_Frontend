@@ -18,6 +18,8 @@ export interface ScanReportSummary {
 
 export interface Issue {
   id: string
+  repoId?: string
+  scanId?: string
   issueNumber: number
   title: string
   description: string

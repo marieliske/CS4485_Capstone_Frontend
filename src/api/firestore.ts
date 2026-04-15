@@ -145,7 +145,7 @@ export async function getIssuesForScan(scanId: string): Promise<DocumentData[]> 
     const issuesRef = collection(db, 'repos', repo.id, 'scan_runs', scanId, 'flags')
     const snap = await getDocs(issuesRef)
     if (!snap.empty) {
-      return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      return snap.docs.map((d) => ({ id: d.id, repo_id: repo.id, scan_id: scanId, ...d.data() }))
     }
   }
   return []

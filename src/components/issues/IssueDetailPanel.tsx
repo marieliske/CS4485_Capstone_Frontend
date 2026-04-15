@@ -1,6 +1,7 @@
 import type { Issue } from '../../types/issue'
 import { Badge } from '../shared/Badge'
 import { Card } from '../shared/Card'
+import { AutoFixButton } from './AutoFixButton'
 
 interface IssueDetailPanelProps {
   issue: Issue | null
@@ -86,6 +87,8 @@ export function IssueDetailPanel({ issue }: IssueDetailPanelProps) {
         <p className="detail-label">Suggested Action</p>
         <p className="detail-copy">{issue.suggestion}</p>
       </div>
+
+      <AutoFixButton issue={issue} />
     </Card>
   )
 }

@@ -115,6 +115,8 @@ function normalizeIssue(rawPayload: unknown, index: number, scanId: string): Iss
 
   return {
     id: toStringValue(raw.id, `${scanId}-issue-${index + 1}`),
+    repoId: toStringValue(raw.repo_id) || undefined,
+    scanId: toStringValue(raw.scan_id, scanId) || undefined,
     issueNumber,
     title: toStringValue(raw.title, toStringValue(raw.message, `Issue ${index + 1}`)),
     description: toStringValue(raw.description, toStringValue(raw.message, 'Documentation mismatch detected.')),
