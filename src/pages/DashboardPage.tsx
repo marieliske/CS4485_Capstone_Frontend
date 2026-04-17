@@ -1,3 +1,4 @@
+import RotGauge from "../components/shared/RotGauge"
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getFingerprintSummary, getScanIssues, getScans, type ScanRecord } from '../api/scans'
 import { useScanEvents } from '../hooks/useScanEvents'
@@ -337,19 +338,10 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
 
           <section className="health-card">
             <header>
-              <h4>Health Index</h4>
-              <strong>{healthProgress}%</strong>
+              <h4>Documentation Rot</h4>
             </header>
-            <div
-              className="health-track"
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={healthProgress}
-            >
-              <span style={{ width: `${healthProgress}%` }} />
-            </div>
-            <p>Based on the latest backend scan and fingerprint summary data.</p>
+              <RotGauge score={healthProgress} />
+              <p>Based on the latest scan&apos;s rot score.</p>
           </section>
         </aside>
       </div>
