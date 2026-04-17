@@ -106,7 +106,13 @@ function AppShell() {
         const stored = localStorage.getItem('docrot_github_username')
         if (stored) {
           setGithubUsernameFilter(stored)
+        } else {
+          // Username not in localStorage — clear filter so no repos leak
+          // User must sign out and back in to restore proper filtering
+          setGithubUsernameFilter(null)
         }
+      } else {
+        setGithubUsernameFilter(null)
       }
     } else {
       setGithubUsernameFilter(null)
