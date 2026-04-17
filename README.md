@@ -101,7 +101,7 @@ The React frontend reads Firestore data in real time and displays repository das
 ├── tsconfig.json
 ├── tsconfig.node.json
 └── vite.config.ts
-````
+```
 
 ---
 
