@@ -17,6 +17,7 @@ const fallbackScanReport: ScanReportSummary = {
 const fallbackIssues: Issue[] = [
   {
     id: 'DOC-201',
+    repoId: '',
     issueNumber: 1,
     title: 'run function behavior changed and docstring is stale',
     description: 'Logic updates were detected but documentation still reflects prior behavior.',
@@ -41,6 +42,7 @@ const fallbackIssues: Issue[] = [
   },
   {
     id: 'DOC-202',
+    repoId: '',
     issueNumber: 2,
     title: 'Architecture.md is flagged from linked code drift',
     description: 'Documentation file was flagged due to cumulative code behavior changes.',
@@ -150,17 +152,19 @@ export function useIssues(scanId?: string | null) {
 
   const closeIssue = useCallback(async (issueId: string) => {
     if (!resolvedScanId) return
+    const repoId = issues.find((i) => i.id === issueId)?.repoId
+    if (!repoId) return
     setIssues((prev) =>
       prev.map((issue) => (issue.id === issueId ? { ...issue, status: 'closed' as const } : issue)),
     )
     try {
-      await apiCloseIssue(resolvedScanId, issueId)
+      await apiCloseIssue(repoId, resolvedScanId, issueId)
     } catch {
       setIssues((prev) =>
         prev.map((issue) => (issue.id === issueId ? { ...issue, status: 'open' as const } : issue)),
       )
     }
-  }, [resolvedScanId])
+  }, [resolvedScanId, issues])
 
   return {
     issues,

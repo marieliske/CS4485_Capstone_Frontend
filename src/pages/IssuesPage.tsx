@@ -1,4 +1,4 @@
-import { useDeferredValue, useMemo, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { IssueDetailPanel } from '../components/issues/IssueDetailPanel'
 import { IssueFilters } from '../components/issues/IssueFilters'
 import { IssueTable } from '../components/issues/IssueTable'
@@ -11,14 +11,19 @@ interface IssuesPageProps {
   searchQuery?: string
 }
 
+const PAGE_SIZE = 25
+
 export function IssuesPage({ initialScanId, onOpenHistory, searchQuery }: IssuesPageProps) {
   const { issues, scanReport, loading, error, openIssues, closeIssue } = useIssues(initialScanId)
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('all')
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null)
+  const [page, setPage] = useState(0)
 
   const activeQuery = searchQuery !== undefined && searchQuery !== '' ? searchQuery : query
   const deferredQuery = useDeferredValue(activeQuery)
+
+  useEffect(() => { setPage(0) }, [deferredQuery, status])
 
   const filteredIssues = useMemo(() => {
     const normalizedQuery = deferredQuery.trim().toLowerCase()
@@ -43,6 +48,9 @@ export function IssuesPage({ initialScanId, onOpenHistory, searchQuery }: Issues
       ].some((value) => value.toLowerCase().includes(normalizedQuery))
     })
   }, [deferredQuery, issues, status])
+
+  const totalPages = Math.ceil(filteredIssues.length / PAGE_SIZE)
+  const pagedIssues = filteredIssues.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   const selectedIssue = filteredIssues.find((issue) => issue.id === selectedIssueId) ?? filteredIssues[0] ?? null
 
@@ -104,7 +112,16 @@ export function IssuesPage({ initialScanId, onOpenHistory, searchQuery }: Issues
           ) : filteredIssues.length === 0 ? (
             <div className="page-placeholder">No issues match your current filters.</div>
           ) : (
-            <IssueTable issues={filteredIssues} onSelect={(issue) => setSelectedIssueId(issue.id)} onClose={closeIssue} />
+            <>
+              <IssueTable issues={pagedIssues} onSelect={(issue) => setSelectedIssueId(issue.id)} onClose={closeIssue} />
+              {totalPages > 1 && (
+                <footer className="table-pagination">
+                  <button type="button" className="btn btn-ghost" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</button>
+                  <span>Page {page + 1} of {totalPages}</span>
+                  <button type="button" className="btn btn-ghost" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>Next</button>
+                </footer>
+              )}
+            </>
           )}
         </section>
 

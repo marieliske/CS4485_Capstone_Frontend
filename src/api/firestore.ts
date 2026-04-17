@@ -100,25 +100,18 @@ function toScanRecord(scanId: string, data: DocumentData, repoId: string): ScanR
 
 export async function getAllScanRuns(): Promise<ScanRecord[]> {
   const repos = await getRepos()
-  const allScans: ScanRecord[] = []
 
-  for (const repo of repos) {
-    const scansRef = collection(db, 'repos', repo.id, 'scan_runs')
-    const scansSnap = await measure(`getAllScanRuns:${repo.id}`, () =>
-      getDocs(query(scansRef, orderBy('scanned_at', 'desc')))
-    )
-    for (const scanDoc of scansSnap.docs) {
-      allScans.push(toScanRecord(scanDoc.id, scanDoc.data(), repo.id))
-    }
-  }
+  const perRepo = await Promise.all(
+    repos.map(async (repo) => {
+      const scansRef = collection(db, 'repos', repo.id, 'scan_runs')
+      const scansSnap = await measure(`getAllScanRuns:${repo.id}`, () =>
+        getDocs(query(scansRef, orderBy('scanned_at', 'desc')))
+      )
+      return scansSnap.docs.map((scanDoc) => toScanRecord(scanDoc.id, scanDoc.data(), repo.id))
+    })
+  )
 
-  allScans.sort((a, b) => {
-    const aTime = Date.parse(a.created_at ?? '')
-    const bTime = Date.parse(b.created_at ?? '')
-    return bTime - aTime
-  })
-
-  return allScans
+  return perRepo.flat().sort((a, b) => Date.parse(b.created_at ?? '') - Date.parse(a.created_at ?? ''))
 }
 
 export async function getScanRunsForRepo(repoId: string): Promise<ScanRecord[]> {
@@ -149,22 +142,15 @@ export async function getIssuesForScan(scanId: string): Promise<DocumentData[]> 
     const issuesRef = collection(db, 'repos', repo.id, 'scan_runs', scanId, 'flags')
     const snap = await measure(`getIssuesForScan:${repo.id}`, () => getDocs(issuesRef))
     if (!snap.empty) {
-      return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      return snap.docs.map((d) => ({ id: d.id, _repoId: repo.id, ...d.data() }))
     }
   }
   return []
 }
 
-export async function closeIssue(scanId: string, issueId: string): Promise<void> {
-  const repos = await getRepos()
-  for (const repo of repos) {
-    const flagRef = doc(db, 'repos', repo.id, 'scan_runs', scanId, 'flags', issueId)
-    const snap = await getDoc(flagRef)
-    if (snap.exists()) {
-      await updateDoc(flagRef, { status: 'closed' })
-      return
-    }
-  }
+export async function closeIssue(repoId: string, scanId: string, issueId: string): Promise<void> {
+  const flagRef = doc(db, 'repos', repoId, 'scan_runs', scanId, 'flags', issueId)
+  await updateDoc(flagRef, { status: 'closed' })
 }
 
 // ---------------------------------------------------------------------------

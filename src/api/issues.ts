@@ -116,6 +116,7 @@ function normalizeIssue(rawPayload: unknown, index: number, scanId: string): Iss
 
   return {
     id: toStringValue(raw.id, `${scanId}-issue-${index + 1}`),
+    repoId: toStringValue(raw._repoId, ''),
     issueNumber,
     title: toStringValue(raw.title, toStringValue(raw.message, `Issue ${index + 1}`)),
     description: toStringValue(raw.description, toStringValue(raw.message, 'Documentation mismatch detected.')),
@@ -142,8 +143,8 @@ function normalizeIssue(rawPayload: unknown, index: number, scanId: string): Iss
   }
 }
 
-export async function closeIssue(scanId: string, issueId: string): Promise<void> {
-  await firestoreCloseIssue(scanId, issueId)
+export async function closeIssue(repoId: string, scanId: string, issueId: string): Promise<void> {
+  await firestoreCloseIssue(repoId, scanId, issueId)
 }
 
 export async function getIssues(scanId?: string) {
