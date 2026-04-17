@@ -9,8 +9,10 @@ interface IssueDetailPanelProps {
 export function IssueDetailPanel({ issue }: IssueDetailPanelProps) {
   if (!issue) {
     return (
-      <Card title="Mismatch Details" className="detail-card">
-        <p className="detail-copy">Select a mismatch from the table to inspect the documentation drift details.</p>
+      <Card title="Documentation Alert Details" className="detail-card">
+        <p className="detail-copy">
+          Select an alert from the table to review the code change, linked documentation, and suggested action.
+        </p>
       </Card>
     )
   }
@@ -21,7 +23,7 @@ export function IssueDetailPanel({ issue }: IssueDetailPanelProps) {
     issue.priority === 'high' ? 'danger' : issue.priority === 'medium' ? 'warning' : 'info'
 
   return (
-    <Card title="Documentation Mismatch Details" className="detail-card">
+    <Card title="Documentation Alert Details" className="detail-card">
       <div className="detail-header">
         <h4 className="detail-title">{issue.title}</h4>
         <p className="detail-copy">{issue.description}</p>
