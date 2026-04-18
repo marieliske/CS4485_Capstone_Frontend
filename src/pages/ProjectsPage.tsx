@@ -4,6 +4,7 @@ import type { ScanRecord } from '../api/scans'
 
 interface ProjectsPageProps {
   onInspectProject?: (scanId?: string) => void
+  searchQuery?: string
 }
 
 interface ProjectRow {
@@ -99,13 +100,19 @@ function toProjectRow(repository: string, scans: ScanRecord[]): ProjectRow {
   }
 }
 
-export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
+const PAGE_SIZE = 25
+
+export function ProjectsPage({ onInspectProject, searchQuery }: ProjectsPageProps) {
   const [projectRows, setProjectRows] = useState<ProjectRow[]>([])
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [page, setPage] = useState(0)
 
-  const deferredQuery = useDeferredValue(query)
+  const activeQuery = searchQuery !== undefined && searchQuery !== '' ? searchQuery : query
+  const deferredQuery = useDeferredValue(activeQuery)
+
+  useEffect(() => { setPage(0) }, [deferredQuery])
 
   useEffect(() => {
     let cancelled = false
@@ -157,6 +164,9 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
     )
   }, [deferredQuery, projectRows])
 
+  const totalPages = Math.ceil(filteredRows.length / PAGE_SIZE)
+  const pagedRows = filteredRows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+
   const latestUpdated = projectRows
     .map((project) => project.lastUpdated)
     .filter((value) => value.length > 0)
@@ -193,7 +203,7 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
           className="scan-history-search-input"
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search project or repository path"
-          value={query}
+          value={activeQuery}
         />
         <span className="projects-filter-btn">Showing {filteredRows.length} projects</span>
       </div>
@@ -216,7 +226,7 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
               </tr>
             </thead>
             <tbody>
-              {filteredRows.map((project) => (
+              {pagedRows.map((project) => (
                 <tr key={project.repository}>
                   <td className="project-name-cell">{project.name}</td>
                   <td className="project-repo-cell">{project.repository}</td>
@@ -261,6 +271,13 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
 
         <footer className="projects-table-footer">
           <span>Showing {filteredRows.length} of {projectRows.length} projects</span>
+          {totalPages > 1 && (
+            <div className="table-pagination">
+              <button type="button" className="btn btn-ghost" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</button>
+              <span>Page {page + 1} of {totalPages}</span>
+              <button type="button" className="btn btn-ghost" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>Next</button>
+            </div>
+          )}
         </footer>
       </section>
     </section>

@@ -5,9 +5,10 @@ import type { Issue } from '../../types/issue'
 interface IssueTableProps {
   issues: Issue[]
   onSelect: (issue: Issue) => void
+  onClose?: (issueId: string) => void
 }
 
-export function IssueTable({ issues, onSelect }: IssueTableProps) {
+export function IssueTable({ issues, onSelect, onClose }: IssueTableProps) {
   const getStatusVariant = (status: Issue['status']) => {
     if (status === 'closed') {
       return 'success'
@@ -55,9 +56,16 @@ export function IssueTable({ issues, onSelect }: IssueTableProps) {
           key: 'id',
           label: 'Actions',
           render: (issue) => (
-            <button className="btn btn-ghost" onClick={() => onSelect(issue)} type="button">
-              View
-            </button>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button className="btn btn-ghost" onClick={() => onSelect(issue)} type="button">
+                View
+              </button>
+              {issue.status !== 'closed' && onClose ? (
+                <button className="btn btn-ghost" onClick={() => onClose(issue.id)} type="button">
+                  Close
+                </button>
+              ) : null}
+            </div>
           ),
         },
       ]}

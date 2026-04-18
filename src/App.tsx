@@ -1,4 +1,5 @@
-import { startTransition, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Profiler, startTransition, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { onRenderCallback } from './utils/perf'
 import { firebaseConfigured, firebaseMissingEnvKeys } from './firebase'
 import { setGithubUsernameFilter } from './api/firestore'
 import { DashboardPage } from './pages/DashboardPage'
@@ -96,6 +97,7 @@ function AppShell() {
   const { user, logout } = useAuth()
   const [activePage, setActivePage] = useState<PageKey>('dashboard')
   const [focusedScanId, setFocusedScanId] = useState<string | null>(null)
+  const [topbarQuery, setTopbarQuery] = useState('')
 
   useEffect(() => {
     if (user) {
@@ -104,7 +106,13 @@ function AppShell() {
         const stored = localStorage.getItem('docrot_github_username')
         if (stored) {
           setGithubUsernameFilter(stored)
+        } else {
+          // Username not in localStorage — clear filter so no repos leak
+          // User must sign out and back in to restore proper filtering
+          setGithubUsernameFilter(null)
         }
+      } else {
+        setGithubUsernameFilter(null)
       }
     } else {
       setGithubUsernameFilter(null)
@@ -114,6 +122,7 @@ function AppShell() {
   const navigateToPage = (page: PageKey) => {
     startTransition(() => {
       setActivePage(page)
+      setTopbarQuery('')
     })
   }
 
@@ -136,13 +145,14 @@ function AppShell() {
       case 'wf-user-settings':
         return <UserSettingsWireframePage />
       case 'projects':
-        return <ProjectsPage onInspectProject={openHistory} />
+        return <ProjectsPage onInspectProject={openHistory} searchQuery={topbarQuery} />
       case 'issues':
         return (
           <IssuesPage
             key={`issues-${focusedScanId ?? 'all'}`}
             initialScanId={focusedScanId}
             onOpenHistory={() => openHistory(focusedScanId ?? undefined)}
+            searchQuery={topbarQuery}
           />
         )
       case 'history':
@@ -151,6 +161,7 @@ function AppShell() {
             key={`history-${focusedScanId ?? 'all'}`}
             initialSelectedScanId={focusedScanId}
             onOpenIssuesForScan={openIssues}
+            searchQuery={topbarQuery}
           />
         )
       case 'configuration':
@@ -166,7 +177,7 @@ function AppShell() {
           />
         )
     }
-  }, [activePage, focusedScanId])
+  }, [activePage, focusedScanId, topbarQuery])
 
   const topbarSearchValue =
     activePage === 'projects'
@@ -263,8 +274,9 @@ function AppShell() {
               </svg>
               <input
                 type="text"
-                value={topbarSearchValue}
-                readOnly
+                value={topbarQuery}
+                onChange={(e) => setTopbarQuery(e.target.value)}
+                placeholder={topbarSearchValue}
                 aria-label={
                   activePage === 'projects'
                     ? 'Quick search'
@@ -303,7 +315,11 @@ function AppShell() {
             )}
           </div>
         </header>
-        <section className="page-container">{pageContent}</section>
+        <section className="page-container">
+          <Profiler id={activePage} onRender={onRenderCallback}>
+            {pageContent}
+          </Profiler>
+        </section>
       </main>
     </div>
   )

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
-import { getIssues } from '../api/issues'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { getIssues, closeIssue as apiCloseIssue } from '../api/issues'
 import { getScans } from '../api/scans'
+import { measure } from '../utils/perf'
 import type { Issue, ScanReportSummary } from '../types/issue'
 
 const fallbackScanReport: ScanReportSummary = {
@@ -16,6 +17,7 @@ const fallbackScanReport: ScanReportSummary = {
 const fallbackIssues: Issue[] = [
   {
     id: 'DOC-201',
+    repoId: '',
     issueNumber: 1,
     title: 'run function behavior changed and docstring is stale',
     description: 'Logic updates were detected but documentation still reflects prior behavior.',
@@ -40,6 +42,7 @@ const fallbackIssues: Issue[] = [
   },
   {
     id: 'DOC-202',
+    repoId: '',
     issueNumber: 2,
     title: 'Architecture.md is flagged from linked code drift',
     description: 'Documentation file was flagged due to cumulative code behavior changes.',
@@ -85,16 +88,19 @@ export function useIssues(scanId?: string | null) {
   const [scanReport, setScanReport] = useState<ScanReportSummary>(fallbackScanReport)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [resolvedScanId, setResolvedScanId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
 
     async function loadIssues() {
       try {
-        const [liveIssues, scans] = await Promise.all([
-          getIssues(scanId ?? undefined),
-          getScans().catch(() => []),
-        ])
+        const [liveIssues, scans] = await measure(`useIssues:load${scanId ? `:${scanId}` : ''}`, () =>
+          Promise.all([
+            getIssues(scanId ?? undefined),
+            getScans().catch(() => []),
+          ])
+        )
 
         if (cancelled) {
           return
@@ -105,6 +111,7 @@ export function useIssues(scanId?: string | null) {
 
         if (hasLiveData) {
           setIssues(liveIssues)
+          setResolvedScanId(selectedScan?.id ?? scanId ?? null)
           setScanReport(
             buildSummary(
               liveIssues,
@@ -143,11 +150,28 @@ export function useIssues(scanId?: string | null) {
 
   const openIssues = useMemo(() => issues.filter((issue) => issue.status !== 'closed'), [issues])
 
+  const closeIssue = useCallback(async (issueId: string) => {
+    if (!resolvedScanId) return
+    const repoId = issues.find((i) => i.id === issueId)?.repoId
+    if (!repoId) return
+    setIssues((prev) =>
+      prev.map((issue) => (issue.id === issueId ? { ...issue, status: 'closed' as const } : issue)),
+    )
+    try {
+      await apiCloseIssue(repoId, resolvedScanId, issueId)
+    } catch {
+      setIssues((prev) =>
+        prev.map((issue) => (issue.id === issueId ? { ...issue, status: 'open' as const } : issue)),
+      )
+    }
+  }, [resolvedScanId, issues])
+
   return {
     issues,
     scanReport,
     loading,
     error,
     openIssues,
+    closeIssue,
   }
 }
