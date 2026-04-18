@@ -1,9 +1,16 @@
-import RotGauge from "../components/shared/RotGauge"
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { getFingerprintSummary, getScanIssues, getScans, type ScanRecord } from '../api/scans'
+import {
+  getAISuggestions,
+  getFingerprintSummary,
+  getScanIssues,
+  getScans,
+  type AISuggestionRecord,
+  type ScanRecord,
+} from '../api/scans'
 import { useScanEvents } from '../hooks/useScanEvents'
+import RotGauge from '../components/shared/RotGauge'
 
-type StatCardTone = 'positive' | 'negative'
+type StatCardTone = 'positive' | 'negative' | 'neutral'
 type ActivityTone = 'success' | 'warning' | 'info' | 'danger'
 
 interface DashboardActivity {
@@ -48,6 +55,10 @@ function pickNumber(source: Record<string, unknown>, keys: string[]): number | n
   return null
 }
 
+function pickFirstString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
+}
+
 function formatRelativeTime(value?: string): string {
   if (!value) {
     return 'just now'
@@ -75,6 +86,106 @@ function formatRelativeTime(value?: string): string {
 
   const days = Math.floor(hours / 24)
   return `${days}d ago`
+}
+
+function isProviderErrorText(text: string): boolean {
+  const normalized = text.toLowerCase()
+
+  return (
+    normalized.includes('rate limit') ||
+    normalized.includes('api 429') ||
+    normalized.includes('ai suggestion unavailable') ||
+    normalized.includes('groq api') ||
+    normalized.includes('"error"') ||
+    normalized.includes('tokens per day')
+  )
+}
+
+function getSuggestionSummary(suggestion: AISuggestionRecord | undefined): string | null {
+  if (!suggestion) return null
+
+  const record = suggestion as unknown as Record<string, unknown>
+
+  const candidate =
+    pickFirstString(record.summary) ??
+    pickFirstString(record.suggestion) ??
+    pickFirstString(record.text) ??
+    pickFirstString(record.content) ??
+    pickFirstString(record.message) ??
+    null
+
+  if (!candidate) return null
+  if (isProviderErrorText(candidate)) return null
+
+  return candidate
+}
+
+function getSuggestionDocName(suggestion: AISuggestionRecord | undefined): string | null {
+  if (!suggestion) return null
+
+  const record = suggestion as unknown as Record<string, unknown>
+
+  return (
+    pickFirstString(record.doc_path) ??
+    pickFirstString(record.docPath) ??
+    pickFirstString(record.file) ??
+    pickFirstString(record.file_path) ??
+    pickFirstString(record.path) ??
+    null
+  )
+}
+
+function getFallbackFixSummary(
+  healthScore: number,
+  openIssues: number,
+  mismatchCount: number,
+  docName: string | null,
+): string {
+  const docTarget = docName ? `${docName}` : 'the flagged documentation'
+
+  if (healthScore <= 20) {
+    return `Your documentation looks healthy overall. Keep monitoring ${docTarget} for smaller drift as new scans come in.`
+  }
+
+  if (healthScore <= 40) {
+    return `Some drift is starting to appear. Review ${docTarget} and verify that examples, setup steps, and behavior descriptions still match the current code.`
+  }
+
+  if (healthScore <= 60) {
+    return `Your documentation needs review soon. Start with ${docTarget}, then work through the ${openIssues} open issue${openIssues === 1 ? '' : 's'} and ${mismatchCount} detected mismatch${mismatchCount === 1 ? '' : 'es'}.`
+  }
+
+  if (healthScore <= 80) {
+    return `Your documentation is at risk of misleading users. Prioritize ${docTarget}, confirm the latest behavior changes, and resolve the most visible stale sections first.`
+  }
+
+  return `Your documentation appears significantly out of sync. Immediately review ${docTarget}, update any outdated architecture or workflow descriptions, and fix the highest-impact mismatches before sharing this with users.`
+}
+
+function splitSuggestionIntoPoints(
+  text: string | null,
+  docName: string | null,
+  openIssues: number,
+  mismatchCount: number,
+): string[] {
+  if (text) {
+    const extracted = text
+      .split(/\n|•|- /)
+      .map((part) => part.trim())
+      .filter((part) => part.length > 20)
+
+    if (extracted.length > 1) {
+      return extracted.slice(0, 3)
+    }
+  }
+
+  const docTarget = docName ?? 'the flagged documentation'
+
+  return [
+    `Review ${docTarget} first and verify it matches the latest implementation.`,
+    'Check architecture, workflow descriptions, and usage examples against current behavior.',
+    `Resolve ${openIssues} open issue${openIssues === 1 ? '' : 's'} and ${mismatchCount} detected mismatch${mismatchCount === 1 ? '' : 'es'} in priority order.`,
+  ]
 }
 
 function StatIcon({ type }: { type: 'folder' | 'search' | 'warning' | 'chart' }) {
@@ -118,6 +229,7 @@ function StatIcon({ type }: { type: 'folder' | 'search' | 'warning' | 'chart' })
 export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, userName }: DashboardPageProps) {
   const [scans, setScans] = useState<ScanRecord[]>([])
   const [openIssues, setOpenIssues] = useState(0)
+  const [aiSuggestions, setAiSuggestions] = useState<AISuggestionRecord[]>([])
   const [healthIndex, setHealthIndex] = useState<number | null>(null)
   const [lastSeenId, setLastSeenId] = useState(0)
   const [initialized, setInitialized] = useState(false)
@@ -140,11 +252,19 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
       let latestOpenIssueCount = 0
 
       if (latestScanId) {
-        const latestIssues = await getScanIssues(latestScanId)
+        const [latestIssues, latestSuggestions] = await Promise.all([
+          getScanIssues(latestScanId),
+          getAISuggestions(latestScanId).catch(() => []),
+        ])
+
         latestOpenIssueCount = latestIssues.filter((issue) => {
           const status = (issue as Record<string, unknown>).status
           return status !== 'closed'
         }).length
+
+        setAiSuggestions(latestSuggestions)
+      } else {
+        setAiSuggestions([])
       }
 
       const summaryObject = summary as Record<string, unknown>
@@ -176,11 +296,34 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
 
   const { isConnected: streamConnected } = useScanEvents(handleScanAdded, lastSeenId, initialized)
 
+  const healthProgress = Math.max(0, Math.min(100, Math.round(healthIndex ?? 0)))
+  const totalProjectCount = new Set(
+    scans.map((scan) => scan.repo_path).filter((path) => typeof path === 'string' && path.length > 0),
+  ).size
+
+  const latestMismatchCount = Math.max(0, Number(scans[0]?.mismatch_count ?? 0))
+  const latestSuggestion = aiSuggestions[0]
+  const latestSuggestionDocName = getSuggestionDocName(latestSuggestion)
+  const latestSuggestionSummary =
+    getSuggestionSummary(latestSuggestion) ??
+    getFallbackFixSummary(
+      healthProgress,
+      openIssues,
+      latestMismatchCount,
+      latestSuggestionDocName,
+    )
+  const latestSuggestionPoints = splitSuggestionIntoPoints(
+    latestSuggestionSummary,
+    latestSuggestionDocName,
+    openIssues,
+    latestMismatchCount,
+  )
+
   const statCards = useMemo(
     () => [
       {
         title: 'Total Projects',
-        value: `${new Set(scans.map((scan) => scan.repo_path).filter((path) => typeof path === 'string' && path.length > 0)).size}`,
+        value: `${totalProjectCount}`,
         delta: 'live',
         tone: 'positive' as StatCardTone,
         icon: 'folder' as const,
@@ -201,13 +344,18 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
       },
       {
         title: 'Latest Scan Score',
-        value: `${Math.max(0, Math.min(100, Math.round(healthIndex ?? 0)))}%`,
+        value: `${healthProgress}%`,
         delta: 'live',
-        tone: ((healthIndex ?? 0) <= 20 ? 'positive' : (healthIndex ?? 0) <= 50 ? 'neutral' : 'negative') as StatCardTone,
+        tone:
+          healthProgress <= 20
+            ? ('positive' as StatCardTone)
+            : healthProgress <= 50
+              ? ('neutral' as StatCardTone)
+              : ('negative' as StatCardTone),
         icon: 'chart' as const,
       },
     ],
-    [healthIndex, openIssues, scans],
+    [healthProgress, openIssues, scans.length, totalProjectCount],
   )
 
   const activityRows = useMemo<DashboardActivity[]>(() => {
@@ -239,11 +387,6 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
       }
     })
   }, [scans])
-
-  const healthProgress = Math.max(0, Math.min(100, Math.round(healthIndex ?? 0)))
-  const totalProjectCount = new Set(
-    scans.map((scan) => scan.repo_path).filter((path) => typeof path === 'string' && path.length > 0),
-  ).size
 
   const statActions: Record<string, (() => void) | undefined> = {
     'Total Projects': onOpenProjects,
@@ -340,8 +483,30 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
             <header>
               <h4>Documentation Rot</h4>
             </header>
-              <RotGauge score={healthProgress} />
-              <p>Based on the latest scan&apos;s rot score.</p>
+
+            <RotGauge score={healthProgress} />
+
+            <p>Based on the latest scan&apos;s rot score.</p>
+
+            <div className="ai-fix-card">
+              <h5>AI Fix Summary</h5>
+              {latestSuggestionDocName && (
+                <div className="ai-fix-doc">
+                  <span className="ai-fix-doc-label">Focus</span>
+                  <strong>{latestSuggestionDocName}</strong>
+                </div>
+              )}
+              
+              <p className="ai-summary">{latestSuggestionSummary}</p>
+              
+              <div className="ai-divider" />
+              
+              <ul className="ai-fix-points">
+                {latestSuggestionPoints.map((point) => (
+                  <li key={point}>{point}</li>
+                ))}
+              </ul>
+            </div>
           </section>
         </aside>
       </div>

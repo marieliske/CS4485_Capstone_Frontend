@@ -4259,3 +4259,126 @@
     display: grid;
   }
 }
+
+.rot-gauge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.rot-gauge-svg {
+  display: block;
+}
+
+.rot-gauge-label {
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.health-card {
+  background: linear-gradient(180deg, rgba(19, 40, 77, 0.72), rgba(10, 23, 50, 0.88));
+  border: 1px solid rgba(110, 168, 254, 0.14);
+  border-radius: 1.25rem;
+  padding: 1.1rem;
+}
+
+.health-card header h4 {
+  margin: 0 0 0.65rem;
+  color: #afc6ee;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.health-card p {
+  margin: 0.7rem 0 0;
+  color: #a8b8d8;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.ai-fix-card {
+  margin-top: 0.95rem;
+  padding: 0.95rem 1rem;
+  border-radius: 1rem;
+  background: rgba(12, 24, 50, 0.52);
+  border: 1px solid rgba(99, 179, 237, 0.14);
+}
+
+.ai-fix-card h5 {
+  margin: 0 0 0.75rem;
+  color: #e6efff;
+  font-size: 0.98rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.ai-fix-doc {
+  display: flex;
+  flex-direction: column;
+  gap: 0.16rem;
+  margin: 0 0 0.8rem;
+}
+
+.ai-fix-doc-label {
+  color: #8ea8d6;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ai-fix-doc strong {
+  color: #dbe7ff;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.ai-fix-card p {
+  margin: 0 0 0.8rem;
+  color: #bfd0ee;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.ai-fix-points {
+  margin: 0;
+  padding-left: 1rem;
+  color: #d7e3fa;
+}
+
+.ai-fix-points li {
+  margin-bottom: 0.4rem;
+  line-height: 1.4;
+  font-size: 0.88rem;
+  color: #dbe7ff;
+}
+
+.ai-fix-points li:last-child {
+  margin-bottom: 0;
+}
+
+.ai-summary {
+  margin: 0 0 0.6rem;
+  color: #c6d6f3;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.ai-divider {
+  height: 1px;
+  background: rgba(99, 179, 237, 0.12);
+  margin: 0.6rem 0 0.7rem;
+}
+
+.ai-fix-card {
+  transition: border 0.2s ease, background 0.2s ease;
+}
+
+.ai-fix-card:hover {
+  border: 1px solid rgba(99, 179, 237, 0.28);
+  background: rgba(12, 24, 50, 0.65);
+}
