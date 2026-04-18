@@ -1,6 +1,5 @@
-import { startTransition, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { firebaseConfigured, firebaseMissingEnvKeys } from './firebase'
-import { setGithubUsernameFilter } from './api/firestore'
 import { DashboardPage } from './pages/DashboardPage'
 import { ProjectsPage } from './pages/ProjectsPage'
 import { IssuesPage } from './pages/IssuesPage'
@@ -9,6 +8,7 @@ import { ConfigurationPage } from './pages/ConfigurationPage'
 import { AuthProvider, useAuth } from './auth/AuthContext'
 import { AuthPage } from './pages/AuthPage'
 import { UserSettingsWireframePage } from './pages/UserSettingsWireframePage'
+
 import './App.css'
 
 type PageKey =
@@ -18,15 +18,7 @@ type PageKey =
   | 'history'
   | 'configuration'
   | 'wf-user-settings'
-
-const pageLabels: Record<PageKey, string> = {
-  dashboard: 'Dashboard Overview',
-  projects: 'Projects',
-  issues: 'Issues',
-  history: 'Scan History',
-  configuration: 'Configuration',
-  'wf-user-settings': 'User Settings',
-}
+  | 'scanHistory'
 
 function NavIcon({ children }: { children: ReactNode }) {
   return (
@@ -38,161 +30,154 @@ function NavIcon({ children }: { children: ReactNode }) {
   )
 }
 
-const navItems: Array<{ key: PageKey; label: string; icon: ReactNode }> = [
-  {
-    key: 'dashboard',
-    label: 'Dashboard',
-    icon: (
-      <NavIcon>
-        <rect x="4" y="4" width="7" height="7" rx="1.3" />
-        <rect x="13" y="4" width="7" height="7" rx="1.3" />
-        <rect x="4" y="13" width="7" height="7" rx="1.3" />
-        <rect x="13" y="13" width="7" height="7" rx="1.3" />
-      </NavIcon>
-    ),
-  },
-  {
-    key: 'projects',
-    label: 'Projects',
-    icon: (
-      <NavIcon>
-        <path d="M3.5 7.5h6l2 2h9v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" />
-      </NavIcon>
-    ),
-  },
-  {
-    key: 'history',
-    label: 'Scan History',
-    icon: (
-      <NavIcon>
-        <path d="M12 3a9 9 0 1 1-6.4 2.6" />
-        <path d="M12 7v5l3 2" />
-      </NavIcon>
-    ),
-  },
-  {
-    key: 'issues',
-    label: 'Issues',
-    icon: (
-      <NavIcon>
-        <path d="M12 4 21 19H3z" />
-        <path d="M12 9v4M12 16h.01" />
-      </NavIcon>
-    ),
-  },
-  {
-    key: 'configuration',
-    label: 'Configuration',
-    icon: (
-      <NavIcon>
-        <circle cx="12" cy="12" r="3.2" />
-        <path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M5.7 5.7l1.6 1.6M16.7 16.7l1.6 1.6M18.3 5.7l-1.6 1.6M7.3 16.7l-1.6 1.6" />
-      </NavIcon>
-    ),
-  },
-]
-
 function AppShell() {
   const { user, logout } = useAuth()
   const [activePage, setActivePage] = useState<PageKey>('dashboard')
-  const [focusedScanId, setFocusedScanId] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (user) {
-      const ghProvider = user.providerData.find((p) => p.providerId === 'github.com')
-      if (ghProvider) {
-        const stored = localStorage.getItem('docrot_github_username')
-        if (stored) {
-          setGithubUsernameFilter(stored)
-        }
-      }
-    } else {
-      setGithubUsernameFilter(null)
-    }
-  }, [user])
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   const navigateToPage = (page: PageKey) => {
-    startTransition(() => {
-      setActivePage(page)
-    })
+    setActivePage(page)
   }
 
-  const openHistory = (scanId?: string) => {
-    startTransition(() => {
-      setFocusedScanId(scanId ?? null)
-      setActivePage('history')
-    })
+  const openHistory = () => {
+    setActivePage('scanHistory')
   }
 
-  const openIssues = (scanId?: string) => {
-    startTransition(() => {
-      setFocusedScanId(scanId ?? null)
-      setActivePage('issues')
-    })
+  const openIssues = () => {
+    setActivePage('issues')
   }
 
-  const pageContent = useMemo(() => {
-    switch (activePage) {
-      case 'wf-user-settings':
-        return <UserSettingsWireframePage />
-      case 'projects':
-        return <ProjectsPage onInspectProject={openHistory} />
-      case 'issues':
-        return (
-          <IssuesPage
-            key={`issues-${focusedScanId ?? 'all'}`}
-            initialScanId={focusedScanId}
-            onOpenHistory={() => openHistory(focusedScanId ?? undefined)}
-          />
-        )
-      case 'history':
-        return (
-          <ScanHistoryPage
-            key={`history-${focusedScanId ?? 'all'}`}
-            initialSelectedScanId={focusedScanId}
-            onOpenIssuesForScan={openIssues}
-          />
-        )
-      case 'configuration':
-        return <ConfigurationPage />
-      case 'dashboard':
-      default:
-        return (
-          <DashboardPage
-            onOpenHistory={openHistory}
-            onOpenIssues={() => openIssues()}
-            onOpenProjects={() => navigateToPage('projects')}
-            userName={user?.displayName ?? user?.email?.split('@')[0] ?? undefined}
-          />
-        )
-    }
-  }, [activePage, focusedScanId])
+  const openProjects = () => {
+    setActivePage('projects')
+  }
 
-  const topbarSearchValue =
-    activePage === 'projects'
-      ? 'Quick search...'
-      : activePage === 'configuration'
-        ? 'Search config...'
-        : activePage === 'wf-user-settings'
-          ? 'Search user settings...'
-          : 'Search documentation...'
+  const navItems: Array<{ key: PageKey; label: string; icon: React.ReactNode }> = [
+    {
+      key: 'dashboard',
+      label: 'Dashboard',
+      icon: (
+        <NavIcon>
+          <path d="M4 13h6V4H4z" />
+          <path d="M14 20h6v-9h-6z" />
+          <path d="M14 10h6V4h-6z" />
+          <path d="M4 20h6v-5H4z" />
+        </NavIcon>
+      ),
+    },
+    {
+      key: 'projects',
+      label: 'Projects',
+      icon: (
+        <NavIcon>
+          <path d="M3.5 8h6l1.7 2H20v8a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2z" />
+        </NavIcon>
+      ),
+    },
+    {
+      key: 'issues',
+      label: 'Issues',
+      icon: (
+        <NavIcon>
+          <circle cx="12" cy="12" r="8" />
+          <path d="M12 8v5" />
+          <path d="M12 16h.01" />
+        </NavIcon>
+      ),
+    },
+    {
+      key: 'scanHistory',
+      label: 'Scan History',
+      icon: (
+        <NavIcon>
+          <path d="M12 8v5l3 2" />
+          <circle cx="12" cy="12" r="8" />
+        </NavIcon>
+      ),
+    },
+    {
+      key: 'configuration',
+      label: 'Configuration',
+      icon: (
+        <NavIcon>
+          <path d="M12 3v3" />
+          <path d="M12 18v3" />
+          <path d="M4.9 4.9l2.1 2.1" />
+          <path d="M17 17l2.1 2.1" />
+          <path d="M3 12h3" />
+          <path d="M18 12h3" />
+          <path d="M4.9 19.1 7 17" />
+          <path d="M17 7l2.1-2.1" />
+          <circle cx="12" cy="12" r="3" />
+        </NavIcon>
+      ),
+    },
+  ]
+
+  let pageTitle = 'Dashboard'
+  let pageContent: React.ReactNode = (
+    <DashboardPage
+      onOpenHistory={openHistory}
+      onOpenIssues={openIssues}
+      onOpenProjects={openProjects}
+      userName={user?.displayName ?? user?.email ?? 'User'}
+    />
+  )
+
+  if (activePage === 'projects') {
+    pageTitle = 'Projects'
+    pageContent = <ProjectsPage onInspectProject={openHistory} />
+  }
+
+  if (activePage === 'issues') {
+    pageTitle = 'Issues'
+    pageContent = <IssuesPage onOpenHistory={openHistory} />
+  }
+
+  if (activePage === 'scanHistory') {
+    pageTitle = 'Scan History'
+    pageContent = <ScanHistoryPage />
+  }
+
+  if (activePage === 'configuration') {
+    pageTitle = 'Configuration'
+    pageContent = <ConfigurationPage />
+  }
+
+  if (activePage === 'wf-user-settings') {
+    pageTitle = 'User Settings'
+    pageContent = <UserSettingsWireframePage />
+  }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <aside className="app-sidebar">
         <div className="app-brand">
-          <span className="app-brand-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <path d="M14 2v6h6" />
-              <circle cx="14" cy="15.5" r="3.5" />
-              <path d="M14 13.5v2l1.5 1" />
-            </svg>
-          </span>
-          <div>
-            <h1>DocRot</h1>
-            <p>Detector Admin</p>
+          <div className="app-brand-left">
+            <span className="app-brand-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <path d="M14 2v6h6" />
+                <circle cx="14" cy="15.5" r="3.5" />
+                <path d="M14 13.5v2l1.5 1" />
+              </svg>
+            </span>
+
+            <div className="app-brand-copy">
+              <h1>DocRot</h1>
+              <p>Detector Admin</p>
+            </div>
           </div>
+
+          <button
+            type="button"
+            className="sidebar-toggle-btn"
+            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            onClick={() => setSidebarCollapsed((prev) => !prev)}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              {sidebarCollapsed ? <path d="M9 6l6 6-6 6" /> : <path d="M15 6l-6 6 6 6" />}
+            </svg>
+          </button>
         </div>
 
         <nav className="app-nav">
@@ -203,9 +188,10 @@ function AppShell() {
               className={activePage === item.key ? 'app-nav-link active' : 'app-nav-link'}
               onClick={() => navigateToPage(item.key)}
               type="button"
+              title={sidebarCollapsed ? item.label : undefined}
             >
               {item.icon}
-              <span>{item.label}</span>
+              <span className="app-nav-text">{item.label}</span>
             </button>
           ))}
         </nav>
@@ -216,35 +202,44 @@ function AppShell() {
             className={activePage === 'wf-user-settings' ? 'app-nav-link active' : 'app-nav-link'}
             onClick={() => navigateToPage('wf-user-settings')}
             style={{ width: '100%', marginBottom: '0.75rem' }}
+            title={sidebarCollapsed ? 'User Settings' : undefined}
           >
             <NavIcon>
               <circle cx="12" cy="8" r="3" />
               <path d="M6 19c1.4-3 3.5-4.5 6-4.5s4.6 1.5 6 4.5" />
             </NavIcon>
-            <span>User Settings</span>
+            <span className="app-nav-text">User Settings</span>
           </button>
 
           <div className="user-row">
             {user?.photoURL ? (
-              <img src={user.photoURL} alt={user.displayName ?? user.email ?? ''} className="avatar" width="32" height="32" />
+              <img
+                src={user.photoURL}
+                alt={user.displayName ?? user.email ?? ''}
+                className="avatar nav-avatar"
+                width="32"
+                height="32"
+              />
             ) : (
               <span className="avatar" aria-hidden="true" />
             )}
-            <div>
+
+            <div className="user-copy">
               <p>{user?.displayName ?? user?.email ?? 'User'}</p>
               <small>{user?.email ?? ''}</small>
             </div>
           </div>
+
           <button
             type="button"
             className="logout-btn"
             onClick={() => {
               localStorage.removeItem('docrot_github_username')
-              setGithubUsernameFilter(null)
               logout()
             }}
+            title={sidebarCollapsed ? 'Sign out' : undefined}
           >
-            Sign out
+            <span className="logout-text">Sign out</span>
           </button>
         </div>
       </aside>
@@ -252,58 +247,11 @@ function AppShell() {
       <main className="app-main">
         <header className="app-topbar">
           <div className="app-topbar-title-wrap">
-            <h2>{pageLabels[activePage]}</h2>
-            {activePage === 'configuration' ? <span className="editor-mode-pill">Editor Mode</span> : null}
-          </div>
-          <div className="app-topbar-tools">
-            <div className="search-shell">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <circle cx="11" cy="11" r="6.2" />
-                <path d="m16 16 4.2 4.2" />
-              </svg>
-              <input
-                type="text"
-                value={topbarSearchValue}
-                readOnly
-                aria-label={
-                  activePage === 'projects'
-                    ? 'Quick search'
-                    : activePage === 'configuration'
-                      ? 'Search configuration'
-                      : activePage === 'wf-user-settings'
-                        ? 'Search user settings'
-                        : 'Search documentation'
-                }
-              />
-            </div>
-            {activePage === 'projects' ? (
-              <button type="button" className="create-project-btn">
-                + Create New Project
-              </button>
-            ) : activePage === 'configuration' ? (
-              <>
-                <button type="button" className="notification-btn" aria-label="Notifications">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                    <path d="M6 9a6 6 0 1 1 12 0v4l1.6 2.2H4.4L6 13z" />
-                    <path d="M10.5 18a1.5 1.5 0 0 0 3 0" />
-                  </svg>
-                </button>
-                <button type="button" className="apply-changes-btn">
-                  Apply Changes
-                </button>
-              </>
-            ) : (
-              <button type="button" className="notification-btn" aria-label="Notifications">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <path d="M15 17H5.5A1.5 1.5 0 0 1 4 15.5v-5A6 6 0 0 1 10 4.6V4a2 2 0 0 1 4 0v.6" />
-                  <path d="M14 12h6" />
-                  <path d="M17 9v6" />
-                </svg>
-              </button>
-            )}
+            <h2>{pageTitle}</h2>
           </div>
         </header>
-        <section className="page-container">{pageContent}</section>
+
+        <div className="page-container">{pageContent}</div>
       </main>
     </div>
   )

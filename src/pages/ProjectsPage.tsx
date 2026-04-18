@@ -1,47 +1,53 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { getRepos, getScanRunsForRepo } from '../api/firestore'
 import type { ScanRecord } from '../api/scans'
+import RotGauge from '../components/shared/RotGauge'
+
+interface ProjectRow {
+  name: string
+  repository: string
+  latestStatus: string
+  statusTone: 'healthy' | 'degrading' | 'critical' | 'untracked'
+  latestScanId?: string
+  latestMismatchCount: number
+  scanCount: number
+  score: number
+  lastUpdated: string
+}
 
 interface ProjectsPageProps {
   onInspectProject?: (scanId?: string) => void
 }
 
-interface ProjectRow {
-  name: string
-  repository: string
-  latestScanId?: string
-  latestStatus: string
-  statusTone: 'healthy' | 'degrading' | 'critical' | 'untracked'
-  score: number
-  scoreWidth: string
-  scoreTone: 'healthy' | 'degrading' | 'critical' | 'untracked'
-  latestMismatchCount: number
-  scanCount: number
-  lastUpdated: string
+function asFiniteNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
-function clampScore(value?: number): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
-    return 0
+function pickNumber(source: unknown, keys: string[]): number | null {
+  if (!source || typeof source !== 'object') {
+    return null
   }
 
-  return Math.max(0, Math.min(100, Math.round(value)))
-}
+  const record = source as Record<string, unknown>
 
-function projectName(repository: string): string {
-  const normalized = repository.replace(/\\/g, '/')
-  const parts = normalized.split('/').filter(Boolean)
-  return parts[parts.length - 1] ?? repository
+  for (const key of keys) {
+    const parsed = asFiniteNumber(record[key])
+    if (parsed !== null) {
+      return parsed
+    }
+  }
+
+  return null
 }
 
 function formatRelativeTime(value?: string): string {
   if (!value) {
-    return 'Not available'
+    return 'just now'
   }
 
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) {
-    return value
+    return 'recently'
   }
 
   const seconds = Math.max(0, Math.round((Date.now() - parsed.getTime()) / 1000))
@@ -59,51 +65,77 @@ function formatRelativeTime(value?: string): string {
     return `${hours}h ago`
   }
 
-  return `${Math.floor(hours / 24)}d ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
 }
 
-function toProjectRow(repository: string, scans: ScanRecord[]): ProjectRow {
-  const sortedScans = [...scans].sort((left, right) => {
-    const leftTime = Date.parse(left.created_at ?? '')
-    const rightTime = Date.parse(right.created_at ?? '')
-    return rightTime - leftTime
+function getStatusTone(score: number, mismatchCount: number): ProjectRow['statusTone'] {
+  if (score <= 20 && mismatchCount === 0) {
+    return 'healthy'
+  }
+  if (score <= 60) {
+    return 'degrading'
+  }
+  return 'critical'
+}
+
+function getLatestStatus(score: number, mismatchCount: number): string {
+  if (score <= 20 && mismatchCount === 0) {
+    return 'Healthy'
+  }
+  if (score <= 60) {
+    return 'Needs Review'
+  }
+  return 'Rotten'
+}
+
+function toProjectRow(repoName: string, scans: ScanRecord[]): ProjectRow {
+  const sortedScans = [...scans].sort((a, b) => {
+    const aDate = typeof a.created_at === 'string' ? new Date(a.created_at).getTime() : 0
+    const bDate = typeof b.created_at === 'string' ? new Date(b.created_at).getTime() : 0
+    return bDate - aDate
   })
 
-  const latestScan = sortedScans[0]
-  const averageScore =
-    sortedScans.length === 0
-      ? 0
-      : clampScore(sortedScans[0].rot_score)
+  const latestScan = sortedScans[0] ?? {}
+  const latestScore = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        pickNumber(latestScan, ['rot_score', 'score', 'health_index', 'healthIndex']) ?? 0,
+      ),
+    ),
+  )
+  const latestMismatchCount = Math.max(
+    0,
+    Math.round(
+      pickNumber(latestScan, ['mismatch_count', 'mismatches', 'total_issues', 'issue_count']) ?? 0,
+    ),
+  )
+  const latestStatus =
+    (typeof latestScan.status === 'string' && latestScan.status) ||
+    getLatestStatus(latestScore, latestMismatchCount)
 
-  let statusTone: ProjectRow['statusTone'] = 'healthy'
-  if (!latestScan) {
-    statusTone = 'untracked'
-  } else if (latestScan.status === 'failed' || averageScore > 50) {
-    statusTone = 'critical'
-  } else if ((latestScan.mismatch_count ?? 0) > 0 || averageScore > 20) {
-    statusTone = 'degrading'
-  }
+  const statusTone = getStatusTone(latestScore, latestMismatchCount)
 
   return {
-    name: projectName(repository),
-    repository,
-    latestScanId: latestScan?.id,
-    latestStatus: latestScan?.status ?? 'untracked',
+    name: repoName.split('/').at(-1) || repoName,
+    repository: repoName,
+    latestStatus,
     statusTone,
-    score: averageScore,
-    scoreWidth: `${averageScore}%`,
-    scoreTone: statusTone,
-    latestMismatchCount: latestScan?.mismatch_count ?? 0,
+    latestScanId: typeof latestScan.id === 'string' ? latestScan.id : undefined,
+    latestMismatchCount,
     scanCount: sortedScans.length,
-    lastUpdated: latestScan?.created_at ?? '',
+    score: latestScore,
+    lastUpdated: typeof latestScan.created_at === 'string' ? latestScan.created_at : '',
   }
 }
 
 export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
   const [projectRows, setProjectRows] = useState<ProjectRow[]>([])
-  const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
 
   const deferredQuery = useDeferredValue(query)
 
@@ -111,6 +143,8 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
     let cancelled = false
 
     async function loadProjects() {
+      setLoading(true)
+
       try {
         const repos = await getRepos()
         const rows: ProjectRow[] = []
@@ -172,7 +206,7 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
   const statCards = [
     { label: 'Total Projects', value: `${projectRows.length}`, warning: false },
     { label: 'Active Alerts', value: `${projectsWithAlerts}`, warning: projectsWithAlerts > 0 },
-    { label: 'Mean Rot Score', value: `${meanRotScore}%`, warning: meanRotScore < 60 },
+    { label: 'Mean Rot Score', value: `${meanRotScore}%`, warning: meanRotScore >= 60 },
     { label: 'Last Update', value: latestUpdated ? formatRelativeTime(latestUpdated) : 'No scans', warning: false },
   ] as const
 
@@ -236,11 +270,8 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
                     </div>
                   </td>
                   <td>
-                    <div className="rot-score-cell">
-                      <div className="rot-track">
-                        <span className={project.scoreTone} style={{ width: project.scoreWidth }} />
-                      </div>
-                      <strong>{project.score}%</strong>
+                    <div className="project-gauge-cell">
+                      <RotGauge score={project.score} compact />
                     </div>
                   </td>
                   <td>

@@ -1,13 +1,6 @@
 type RotGaugeProps = {
   score: number
-}
-
-function getGaugeColor(score: number) {
-  if (score <= 20) return '#4FD1C5'
-  if (score <= 40) return '#63B3ED'
-  if (score <= 60) return '#F6AD55'
-  if (score <= 80) return '#F687B3'
-  return '#FC8181'
+  compact?: boolean
 }
 
 function getGaugeLabel(score: number) {
@@ -18,48 +11,83 @@ function getGaugeLabel(score: number) {
   return 'Rotten'
 }
 
-export default function RotGauge({ score }: RotGaugeProps) {
+export default function RotGauge({ score, compact = false }: RotGaugeProps) {
   const clamped = Math.max(0, Math.min(100, Math.round(score)))
-  const radius = 80
+  const radius = compact ? 54 : 84
+  const width = compact ? 150 : 240
+  const height = compact ? 96 : 150
+  const startX = compact ? 21 : 30
+  const endX = compact ? 129 : 210
+  const baseY = compact ? 76 : 125
+  const centerX = compact ? 75 : 120
+  const scoreY = compact ? 56 : 88
+  const subY = compact ? 70 : 108
+  const strokeWidth = compact ? 12 : 18
   const circumference = Math.PI * radius
   const progress = circumference - (clamped / 100) * circumference
-  const color = getGaugeColor(clamped)
   const label = getGaugeLabel(clamped)
 
   return (
-    <div className="rot-gauge">
-      <svg width="220" height="140" viewBox="0 0 220 140" className="rot-gauge-svg">
+    <div className={`rot-gauge ${compact ? 'compact' : ''}`}>
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="rot-gauge-svg">
+        <defs>
+          <linearGradient id="rotGaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#22c55e" />
+            <stop offset="45%" stopColor="#f59e0b" />
+            <stop offset="100%" stopColor="#ef4444" />
+          </linearGradient>
+        </defs>
+
         <path
-          d="M 20 120 A 80 80 0 0 1 200 120"
+          d={`M ${startX} ${baseY} A ${radius} ${radius} 0 0 1 ${endX} ${baseY}`}
           fill="none"
-          stroke="rgba(255,255,255,0.12)"
-          strokeWidth="16"
+          stroke="rgba(255,255,255,0.10)"
+          strokeWidth={strokeWidth}
           strokeLinecap="round"
         />
+
         <path
-          d="M 20 120 A 80 80 0 0 1 200 120"
+          d={`M ${startX} ${baseY} A ${radius} ${radius} 0 0 1 ${endX} ${baseY}`}
           fill="none"
-          stroke={color}
-          strokeWidth="16"
+          stroke="url(#rotGaugeGradient)"
+          strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={progress}
+          className="rot-gauge-progress"
         />
+
         <text
-          x="110"
-          y="85"
+          x={centerX}
+          y={scoreY}
           textAnchor="middle"
-          fontSize="28"
+          fontSize={compact ? '20' : '30'}
           fontWeight="700"
           fill="#F8FAFC"
         >
           {clamped}
         </text>
+
+        <text
+          x={centerX}
+          y={subY}
+          textAnchor="middle"
+          fontSize={compact ? '10' : '13'}
+          fontWeight="500"
+          fill="#9FB2D1"
+        >
+          / 100
+        </text>
       </svg>
 
-      <div className="rot-gauge-label" style={{ color }}>
-        {label}
-      </div>
+      {!compact ? (
+        <div className="rot-gauge-scale">
+          <span>Fresh</span>
+          <span>Rotten</span>
+        </div>
+      ) : null}
+
+      <div className="rot-gauge-label">{label}</div>
     </div>
   )
 }
