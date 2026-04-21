@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { firebaseConfigured, firebaseMissingEnvKeys } from './firebase'
 import { DashboardPage } from './pages/DashboardPage'
 import { ProjectsPage } from './pages/ProjectsPage'
@@ -30,10 +30,29 @@ function NavIcon({ children }: { children: ReactNode }) {
   )
 }
 
+function SearchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <circle cx="11" cy="11" r="5.5" />
+      <path d="m15 15 5 5" />
+    </svg>
+  )
+}
+
+function BellIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M6.5 9a5.5 5.5 0 1 1 11 0c0 5.5 2 6.5 2 6.5h-15S6.5 14.5 6.5 9Z" />
+      <path d="M10 19a2 2 0 0 0 4 0" />
+    </svg>
+  )
+}
+
 function AppShell() {
   const { user, logout } = useAuth()
   const [activePage, setActivePage] = useState<PageKey>('dashboard')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [topbarQuery, setTopbarQuery] = useState('')
 
   const navigateToPage = (page: PageKey) => {
     setActivePage(page)
@@ -148,6 +167,43 @@ function AppShell() {
     pageContent = <UserSettingsWireframePage />
   }
 
+  const topbarPrimaryAction = useMemo(() => {
+  if (activePage === 'dashboard') {
+    return {
+      label: '+ Create New Project',
+      className: 'create-project-btn',
+      onClick: () => {
+        setActivePage('projects')
+        window.setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('projects:create'))
+        }, 0)
+      },
+    }
+  }
+
+  if (activePage === 'projects') {
+    return {
+      label: '+ Create New Project',
+      className: 'create-project-btn',
+      onClick: () => {
+        window.dispatchEvent(new CustomEvent('projects:create'))
+      },
+    }
+  }
+
+  if (activePage === 'configuration') {
+    return {
+      label: 'Apply Changes',
+      className: 'apply-changes-btn',
+      onClick: () => {
+        window.dispatchEvent(new CustomEvent('configuration:apply'))
+      },
+    }
+  }
+
+  return null
+}, [activePage])
+
   return (
     <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <aside className="app-sidebar">
@@ -248,6 +304,33 @@ function AppShell() {
         <header className="app-topbar">
           <div className="app-topbar-title-wrap">
             <h2>{pageTitle}</h2>
+          </div>
+
+          <div className="app-topbar-tools">
+            <div className="search-shell">
+              <SearchIcon />
+              <input
+                type="text"
+                placeholder={`Search ${pageTitle.toLowerCase()}`}
+                value={topbarQuery}
+                onChange={(event) => setTopbarQuery(event.target.value)}
+                aria-label={`Search ${pageTitle}`}
+              />
+            </div>
+
+            <button type="button" className="notification-btn" aria-label="Notifications">
+              <BellIcon />
+            </button>
+
+            {topbarPrimaryAction ? (
+              <button
+                type="button"
+                className={topbarPrimaryAction.className}
+                onClick={topbarPrimaryAction.onClick}
+              >
+                {topbarPrimaryAction.label}
+              </button>
+            ) : null}
           </div>
         </header>
 

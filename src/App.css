@@ -4558,3 +4558,345 @@
     font-size: 2rem;
   }
 }
+
+/* ===== Projects + Scan History readability polish ===== */
+
+.app-main {
+  padding: 20px 24px 24px;
+}
+
+.page-container {
+  min-width: 0;
+}
+
+.projects-page,
+.scan-history-page,
+.issues-page,
+.configuration-page,
+.dashboard-page {
+  min-width: 0;
+}
+
+/* Make top sections breathe more */
+.projects-stats-grid,
+.scan-history-summary-grid,
+.issues-summary-grid,
+.dashboard-stats-grid {
+  gap: 16px;
+}
+
+.projects-stat-card,
+.scan-history-summary-card,
+.issues-summary-card,
+.dashboard-stat-card {
+  min-width: 0;
+  padding: 18px 16px;
+}
+
+/* Projects page */
+.projects-filter-row {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.projects-filter-row .scan-history-search-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.projects-table-shell {
+  overflow-x: auto;
+}
+
+.projects-table {
+  min-width: 1180px;
+  width: 100%;
+}
+
+.projects-table th,
+.projects-table td {
+  padding: 18px 14px;
+  vertical-align: middle;
+}
+
+.project-name-cell {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.project-repo-cell {
+  min-width: 260px;
+  word-break: break-word;
+}
+
+.project-scan-cell strong {
+  display: block;
+  margin-bottom: 4px;
+  word-break: break-word;
+}
+
+.project-scan-cell small {
+  display: block;
+  line-height: 1.35;
+}
+
+.project-gauge-cell {
+  min-width: 170px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.projects-table-footer {
+  padding: 12px 14px;
+}
+
+/* Scan history page */
+.scan-history-toolbar {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.scan-history-filters {
+  display: flex;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.scan-history-filters .scan-history-search-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.scan-history-filter-select {
+  min-width: 140px;
+}
+
+.scan-history-search {
+  min-width: 280px;
+}
+
+.scan-history-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(320px, 0.95fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.scan-history-table-shell {
+  overflow-x: auto;
+}
+
+.scan-history-table {
+  min-width: 980px;
+  width: 100%;
+}
+
+.scan-history-table th,
+.scan-history-table td {
+  padding: 16px 14px;
+  vertical-align: middle;
+}
+
+.scan-id-cell {
+  min-width: 180px;
+}
+
+.scan-date-cell {
+  min-width: 170px;
+}
+
+.scan-link-button {
+  white-space: nowrap;
+}
+
+.scan-detail-card {
+  min-width: 0;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.detail-copy,
+.ai-suggestion-text {
+  line-height: 1.5;
+}
+
+.ai-suggestions-list {
+  display: grid;
+  gap: 10px;
+}
+
+/* Prevent content from feeling cramped on medium screens */
+@media (max-width: 1280px) {
+  .app-shell {
+    grid-template-columns: 220px 1fr;
+  }
+
+  .projects-table {
+    min-width: 1100px;
+  }
+
+  .scan-history-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .scan-detail-card {
+    position: static;
+  }
+}
+
+/* Tablet */
+@media (max-width: 980px) {
+  .app-main {
+    padding: 16px 18px 20px;
+  }
+
+  .projects-stats-grid,
+  .scan-history-summary-grid,
+  .issues-summary-grid,
+  .dashboard-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .projects-filter-row,
+  .scan-history-toolbar,
+  .scan-history-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .scan-history-search {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+/* Mobile */
+@media (max-width: 720px) {
+  .app-main {
+    padding: 14px 14px 18px;
+  }
+
+  .projects-stats-grid,
+  .scan-history-summary-grid,
+  .issues-summary-grid,
+  .dashboard-stats-grid,
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .projects-stat-card,
+  .scan-history-summary-card,
+  .issues-summary-card,
+  .dashboard-stat-card,
+  .dashboard-panel,
+  .configuration-section,
+  .projects-table-shell,
+  .scan-history-table-shell,
+  .issues-table-shell {
+    padding: 12px;
+  }
+}
+
+.project-details-row td {
+  padding: 0;
+  border-top: 0;
+}
+
+.project-details-panel {
+  background: rgba(255, 255, 255, 0.02);
+  border-top: 1px solid #1b2d4a;
+  padding: 16px 18px 18px;
+}
+
+.project-details-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.project-details-card {
+  background: #101c30;
+  border: 1px solid #1b2d4a;
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.project-issues-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.project-issues-list li {
+  line-height: 1.4;
+}
+
+.projects-table-shell {
+  overflow-x: auto;
+}
+
+.projects-table {
+  width: 100%;
+  min-width: 1080px;
+}
+
+.projects-table th,
+.projects-table td {
+  padding: 16px 14px;
+  vertical-align: middle;
+}
+
+.project-gauge-cell {
+  min-width: 150px;
+}
+
+.project-repo-cell {
+  min-width: 220px;
+  word-break: break-word;
+}
+
+.project-scan-cell {
+  min-width: 220px;
+}
+
+@media (max-width: 1100px) {
+  .project-details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .projects-table {
+    min-width: 980px;
+  }
+}
+
+@media (max-width: 900px) {
+  .projects-stats-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .projects-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .project-details-panel {
+    padding: 12px;
+  }
+
+  .project-details-card {
+    padding: 12px;
+  }
+}

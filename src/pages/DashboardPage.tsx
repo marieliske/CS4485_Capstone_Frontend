@@ -328,7 +328,7 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
           <h3>Quick Actions</h3>
           <button type="button" className="action-primary-btn" onClick={() => onOpenHistory?.()}>
             <span>New Scan</span>
-            <span aria-hidden="true">-&gt;</span>
+            <span aria-hidden="true">→</span>
           </button>
 
           <div className="action-secondary-grid">
