@@ -1,48 +1,61 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { getRepos, getScanRunsForRepo } from '../api/firestore'
-import type { ScanRecord } from '../api/scans'
-
-interface ProjectsPageProps {
-  onInspectProject?: (scanId?: string) => void
-  searchQuery?: string
-}
+import { getScanIssues } from '../api/scans'
+import type { ScanIssueRecord, ScanRecord } from '../api/scans'
+import RotGauge from '../components/shared/RotGauge'
 
 interface ProjectRow {
   name: string
   repository: string
-  latestScanId?: string
   latestStatus: string
   statusTone: 'healthy' | 'degrading' | 'critical' | 'untracked'
-  score: number
-  scoreWidth: string
-  scoreTone: 'healthy' | 'degrading' | 'critical' | 'untracked'
+  latestScanId?: string
   latestMismatchCount: number
   scanCount: number
+  score: number
   lastUpdated: string
 }
 
-function clampScore(value?: number): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
-    return 0
-  }
-
-  return Math.max(0, Math.min(100, Math.round(value)))
+interface ProjectsPageProps {
+  onInspectProject?: (scanId?: string) => void
 }
 
-function projectName(repository: string): string {
-  const normalized = repository.replace(/\\/g, '/')
-  const parts = normalized.split('/').filter(Boolean)
-  return parts[parts.length - 1] ?? repository
+function asFiniteNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function asObject(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object') {
+    return {}
+  }
+  return value as Record<string, unknown>
+}
+
+function pickNumber(source: unknown, keys: string[]): number | null {
+  if (!source || typeof source !== 'object') {
+    return null
+  }
+
+  const record = source as Record<string, unknown>
+
+  for (const key of keys) {
+    const parsed = asFiniteNumber(record[key])
+    if (parsed !== null) {
+      return parsed
+    }
+  }
+
+  return null
 }
 
 function formatRelativeTime(value?: string): string {
   if (!value) {
-    return 'Not available'
+    return 'just now'
   }
 
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) {
-    return value
+    return 'recently'
   }
 
   const seconds = Math.max(0, Math.round((Date.now() - parsed.getTime()) / 1000))
@@ -60,43 +73,112 @@ function formatRelativeTime(value?: string): string {
     return `${hours}h ago`
   }
 
-  return `${Math.floor(hours / 24)}d ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
 }
 
-function toProjectRow(repository: string, scans: ScanRecord[]): ProjectRow {
-  const sortedScans = [...scans].sort((left, right) => {
-    const leftTime = Date.parse(left.created_at ?? '')
-    const rightTime = Date.parse(right.created_at ?? '')
-    return rightTime - leftTime
-  })
-
-  const latestScan = sortedScans[0]
-  const averageScore =
-    sortedScans.length === 0
-      ? 0
-      : clampScore(sortedScans[0].rot_score)
-
-  let statusTone: ProjectRow['statusTone'] = 'healthy'
-  if (!latestScan) {
-    statusTone = 'untracked'
-  } else if (latestScan.status === 'failed' || averageScore > 50) {
-    statusTone = 'critical'
-  } else if ((latestScan.mismatch_count ?? 0) > 0 || averageScore > 20) {
-    statusTone = 'degrading'
+function formatScanRunLabel(value?: string): string {
+  if (!value) {
+    return 'Recent scan'
   }
 
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return 'Recent scan'
+  }
+
+  return parsed.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+function shortenScanId(id?: string): string {
+  if (!id) {
+    return 'Unavailable'
+  }
+
+  return id.length > 8 ? `${id.slice(0, 8)}…` : id
+}
+
+function getStatusTone(score: number, mismatchCount: number): ProjectRow['statusTone'] {
+  if (score <= 20 && mismatchCount === 0) {
+    return 'healthy'
+  }
+  if (score <= 60) {
+    return 'degrading'
+  }
+  return 'critical'
+}
+
+function getLatestStatus(score: number, mismatchCount: number): string {
+  if (score <= 20 && mismatchCount === 0) {
+    return 'Healthy'
+  }
+  if (score <= 40) {
+    return 'Slightly Stale'
+  }
+  if (score <= 60) {
+    return 'Needs Review'
+  }
+  if (score <= 80) {
+    return 'At Risk'
+  }
+  return 'Rotten'
+}
+
+function summarizeIssue(record: ScanIssueRecord, index: number): string {
+  const issue = asObject(record)
+  return (
+    (typeof issue.title === 'string' && issue.title) ||
+    (typeof issue.message === 'string' && issue.message) ||
+    (typeof issue.symbol === 'string' && issue.symbol) ||
+    (typeof issue.code_path === 'string' && issue.code_path) ||
+    `Issue ${index + 1}`
+  )
+}
+
+function toProjectRow(repoName: string, scans: ScanRecord[]): ProjectRow {
+  const sortedScans = [...scans].sort((a, b) => {
+    const aDate = typeof a.created_at === 'string' ? new Date(a.created_at).getTime() : 0
+    const bDate = typeof b.created_at === 'string' ? new Date(b.created_at).getTime() : 0
+    return bDate - aDate
+  })
+
+  const latestScan = sortedScans[0] ?? {}
+  const latestScore = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        pickNumber(latestScan, ['rot_score', 'score', 'health_index', 'healthIndex']) ?? 0,
+      ),
+    ),
+  )
+  const latestMismatchCount = Math.max(
+    0,
+    Math.round(
+      pickNumber(latestScan, ['mismatch_count', 'mismatches', 'total_issues', 'issue_count']) ?? 0,
+    ),
+  )
+  const latestStatus =
+    (typeof latestScan.status === 'string' && latestScan.status) ||
+    getLatestStatus(latestScore, latestMismatchCount)
+
+  const statusTone = getStatusTone(latestScore, latestMismatchCount)
+
   return {
-    name: projectName(repository),
-    repository,
-    latestScanId: latestScan?.id,
-    latestStatus: latestScan?.status ?? 'untracked',
+    name: repoName.split('/').at(-1) || repoName,
+    repository: repoName,
+    latestStatus,
     statusTone,
-    score: averageScore,
-    scoreWidth: `${averageScore}%`,
-    scoreTone: statusTone,
-    latestMismatchCount: latestScan?.mismatch_count ?? 0,
+    latestScanId: typeof latestScan.id === 'string' ? latestScan.id : undefined,
+    latestMismatchCount,
     scanCount: sortedScans.length,
-    lastUpdated: latestScan?.created_at ?? '',
+    score: latestScore,
+    lastUpdated: typeof latestScan.created_at === 'string' ? latestScan.created_at : '',
   }
 }
 
@@ -104,13 +186,15 @@ const PAGE_SIZE = 25
 
 export function ProjectsPage({ onInspectProject, searchQuery }: ProjectsPageProps) {
   const [projectRows, setProjectRows] = useState<ProjectRow[]>([])
-  const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [page, setPage] = useState(0)
-
-  const activeQuery = searchQuery !== undefined && searchQuery !== '' ? searchQuery : query
-  const deferredQuery = useDeferredValue(activeQuery)
+  const [query, setQuery] = useState('')
+  const [showCreateForm, setShowCreateForm] = useState(false)
+  const [newProjectName, setNewProjectName] = useState('')
+  const [newRepository, setNewRepository] = useState('')
+  const [expandedProjectKey, setExpandedProjectKey] = useState<string | null>(null)
+  const [expandedIssues, setExpandedIssues] = useState<Record<string, ScanIssueRecord[]>>({})
+  const [expandedLoadingKey, setExpandedLoadingKey] = useState<string | null>(null)
 
   useEffect(() => { setPage(0) }, [deferredQuery])
 
@@ -118,6 +202,8 @@ export function ProjectsPage({ onInspectProject, searchQuery }: ProjectsPageProp
     let cancelled = false
 
     async function loadProjects() {
+      setLoading(true)
+
       try {
         const repos = await getRepos()
         const rows: ProjectRow[] = []
@@ -148,6 +234,18 @@ export function ProjectsPage({ onInspectProject, searchQuery }: ProjectsPageProp
 
     return () => {
       cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    const handleCreateProject = () => {
+      setShowCreateForm(true)
+    }
+
+    window.addEventListener('projects:create', handleCreateProject)
+
+    return () => {
+      window.removeEventListener('projects:create', handleCreateProject)
     }
   }, [])
 
@@ -182,12 +280,102 @@ export function ProjectsPage({ onInspectProject, searchQuery }: ProjectsPageProp
   const statCards = [
     { label: 'Total Projects', value: `${projectRows.length}`, warning: false },
     { label: 'Active Alerts', value: `${projectsWithAlerts}`, warning: projectsWithAlerts > 0 },
-    { label: 'Mean Rot Score', value: `${meanRotScore}%`, warning: meanRotScore < 60 },
-    { label: 'Last Update', value: latestUpdated ? formatRelativeTime(latestUpdated) : 'No scans', warning: false },
+    { label: 'Mean Rot Score', value: `${meanRotScore}%`, warning: meanRotScore >= 60 },
+    {
+      label: 'Last Update',
+      value: latestUpdated ? formatRelativeTime(latestUpdated) : 'No scans',
+      warning: false,
+    },
   ] as const
+
+  const handleCreateProject = () => {
+    const trimmedName = newProjectName.trim()
+    const trimmedRepo = newRepository.trim()
+
+    if (!trimmedName || !trimmedRepo) {
+      window.alert('Please enter both a project name and repository path.')
+      return
+    }
+
+    const newProject: ProjectRow = {
+      name: trimmedName,
+      repository: trimmedRepo,
+      latestStatus: 'Untracked',
+      statusTone: 'untracked',
+      latestScanId: undefined,
+      latestMismatchCount: 0,
+      scanCount: 0,
+      score: 0,
+      lastUpdated: '',
+    }
+
+    setProjectRows((prev) => [newProject, ...prev])
+    setNewProjectName('')
+    setNewRepository('')
+    setShowCreateForm(false)
+    setError(null)
+  }
+
+  const handleToggleExpand = async (project: ProjectRow) => {
+    const key = project.repository
+
+    if (expandedProjectKey === key) {
+      setExpandedProjectKey(null)
+      return
+    }
+
+    setExpandedProjectKey(key)
+
+    if (!project.latestScanId || expandedIssues[key]) {
+      return
+    }
+
+    try {
+      setExpandedLoadingKey(key)
+      const issues = await getScanIssues(project.latestScanId)
+      setExpandedIssues((prev) => ({ ...prev, [key]: issues }))
+    } catch {
+      setExpandedIssues((prev) => ({ ...prev, [key]: [] }))
+    } finally {
+      setExpandedLoadingKey(null)
+    }
+  }
 
   return (
     <section className="projects-page">
+      {showCreateForm ? (
+        <section className="configuration-section" style={{ display: 'grid', gap: '0.9rem' }}>
+          <div className="configuration-section-head">
+            <h3>Create New Project</h3>
+            <button type="button" className="config-link-btn" onClick={() => setShowCreateForm(false)}>
+              Cancel
+            </button>
+          </div>
+
+          <input
+            aria-label="Project name"
+            className="scan-history-search-input"
+            placeholder="Project name"
+            value={newProjectName}
+            onChange={(event) => setNewProjectName(event.target.value)}
+          />
+
+          <input
+            aria-label="Repository path"
+            className="scan-history-search-input"
+            placeholder="owner/repository"
+            value={newRepository}
+            onChange={(event) => setNewRepository(event.target.value)}
+          />
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button type="button" className="create-project-btn" onClick={handleCreateProject}>
+              Save Project
+            </button>
+          </div>
+        </section>
+      ) : null}
+
       <div className="projects-stats-grid">
         {statCards.map((card) => (
           <article key={card.label} className="projects-stat-card">
@@ -226,58 +414,122 @@ export function ProjectsPage({ onInspectProject, searchQuery }: ProjectsPageProp
               </tr>
             </thead>
             <tbody>
-              {pagedRows.map((project) => (
-                <tr key={project.repository}>
-                  <td className="project-name-cell">{project.name}</td>
-                  <td className="project-repo-cell">{project.repository}</td>
-                  <td>
-                    <span className={`project-status ${project.statusTone}`}>
-                      <span className="status-dot" aria-hidden="true" />
-                      {project.latestStatus}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="project-scan-cell">
-                      <strong>{project.latestScanId ?? 'Unavailable'}</strong>
-                      <small>
-                        {project.scanCount} scan{project.scanCount === 1 ? '' : 's'} • {project.latestMismatchCount} mismatch
-                        {project.latestMismatchCount === 1 ? '' : 'es'}
-                      </small>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="rot-score-cell">
-                      <div className="rot-track">
-                        <span className={project.scoreTone} style={{ width: project.scoreWidth }} />
-                      </div>
-                      <strong>{project.score}%</strong>
-                    </div>
-                  </td>
-                  <td>
-                    <button
-                      type="button"
-                      className="btn btn-ghost"
-                      disabled={!project.latestScanId}
-                      onClick={() => onInspectProject?.(project.latestScanId)}
-                    >
-                      Inspect
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {filteredRows.map((project) => {
+                const isExpanded = expandedProjectKey === project.repository
+                const issues = expandedIssues[project.repository] ?? []
+
+                return (
+                  <>
+                    <tr key={project.repository}>
+                      <td className="project-name-cell">{project.name}</td>
+                      <td className="project-repo-cell">{project.repository}</td>
+                      <td>
+                        <span className={`project-status ${project.statusTone}`}>
+                          <span className="status-dot" aria-hidden="true" />
+                          {project.latestStatus}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="project-scan-cell">
+                          <strong>{formatScanRunLabel(project.lastUpdated)}</strong>
+                          <small>
+                            {project.scanCount} scan{project.scanCount === 1 ? '' : 's'} • {project.latestMismatchCount} mismatch
+                            {project.latestMismatchCount === 1 ? '' : 'es'}
+                          </small>
+                          <small className="scan-id-meta">ID: {shortenScanId(project.latestScanId)}</small>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="project-gauge-cell">
+                          <RotGauge score={project.score} compact />
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            className="btn btn-ghost"
+                            onClick={() => handleToggleExpand(project)}
+                          >
+                            {isExpanded ? 'Hide Details' : 'Inspect'}
+                          </button>
+
+                          {project.latestScanId ? (
+                            <button
+                              type="button"
+                              className="btn btn-ghost"
+                              onClick={() => onInspectProject?.(project.latestScanId)}
+                            >
+                              Full View
+                            </button>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+
+                    {isExpanded ? (
+                      <tr key={`${project.repository}-details`} className="project-details-row">
+                        <td colSpan={6}>
+                          <div className="project-details-panel">
+                            <div className="project-details-grid">
+                              <div className="project-details-card">
+                                <p className="detail-label">Project Summary</p>
+                                <p className="detail-copy">
+                                  <strong>{project.name}</strong> has {project.scanCount} total scan
+                                  {project.scanCount === 1 ? '' : 's'}, a latest rot score of{' '}
+                                  <strong>{project.score}%</strong>, and{' '}
+                                  <strong>{project.latestMismatchCount}</strong> detected mismatch
+                                  {project.latestMismatchCount === 1 ? '' : 'es'}.
+                                </p>
+                              </div>
+
+                              <div className="project-details-card">
+                                <p className="detail-label">Latest Run</p>
+                                <p className="detail-copy">{formatScanRunLabel(project.lastUpdated)}</p>
+                                <p className="detail-copy" style={{ opacity: 0.75 }}>
+                                  Scan ref: {shortenScanId(project.latestScanId)}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="project-details-card">
+                              <p className="detail-label">Latest Scan Issues</p>
+
+                              {!project.latestScanId ? (
+                                <p className="detail-copy">
+                                  This project does not have a latest scan yet.
+                                </p>
+                              ) : expandedLoadingKey === project.repository ? (
+                                <p className="detail-copy">Loading issues…</p>
+                              ) : issues.length === 0 ? (
+                                <p className="detail-copy">
+                                  No linked issues were returned for the latest scan.
+                                </p>
+                              ) : (
+                                <ul className="project-issues-list">
+                                  {issues.slice(0, 5).map((issue, index) => (
+                                    <li key={`${project.repository}-issue-${index}`}>
+                                      {summarizeIssue(issue, index)}
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
+                  </>
+                )
+              })}
             </tbody>
           </table>
         )}
 
         <footer className="projects-table-footer">
-          <span>Showing {filteredRows.length} of {projectRows.length} projects</span>
-          {totalPages > 1 && (
-            <div className="table-pagination">
-              <button type="button" className="btn btn-ghost" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</button>
-              <span>Page {page + 1} of {totalPages}</span>
-              <button type="button" className="btn btn-ghost" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>Next</button>
-            </div>
-          )}
+          <span>
+            Showing {filteredRows.length} of {projectRows.length} projects
+          </span>
         </footer>
       </section>
     </section>

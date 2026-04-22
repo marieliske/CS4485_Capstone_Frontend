@@ -1,7 +1,16 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { asObject, type JsonObject } from '../api/client'
-import { getAISuggestions, getScanIssues, getScanReport, getScans, type AISuggestionRecord, type ScanIssueRecord, type ScanRecord } from '../api/scans'
+import {
+  getAISuggestions,
+  getScanIssues,
+  getScanReport,
+  getScans,
+  type AISuggestionRecord,
+  type ScanIssueRecord,
+  type ScanRecord,
+} from '../api/scans'
 import { Card } from '../components/shared/Card'
+import RotGauge from '../components/shared/RotGauge'
 
 interface ScanHistoryPageProps {
   initialSelectedScanId?: string | null
@@ -46,6 +55,36 @@ function formatDateTime(value?: string): string {
   return parsed.toLocaleString()
 }
 
+function formatScanRunLabel(value?: string): string {
+  if (!value) {
+    return 'Recent scan'
+  }
+
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return 'Recent scan'
+  }
+
+  return parsed.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+function shortenScanId(id?: string): string {
+  if (!id) {
+    return 'Unavailable'
+  }
+
+  return id.length > 8 ? `${id.slice(0, 8)}…` : id
+}
+
+function formatScanPseudoName(scan: ScanRecord): string {
+  return `${formatScanRunLabel(scan.created_at)} (${formatDateTime(scan.created_at)})`
+}
+
 function getStatusTone(status?: string): 'completed' | 'failed' | 'progress' {
   if (status === 'failed') {
     return 'failed'
@@ -59,12 +98,9 @@ function getStatusTone(status?: string): 'completed' | 'failed' | 'progress' {
 }
 
 function matchesQuery(scan: ScanRecord, query: string): boolean {
-  return [
-    scan.id ?? '',
-    scan.repo_path ?? '',
-    scan.commit_sha ?? '',
-    scan.status ?? '',
-  ].some((value) => value.toLowerCase().includes(query))
+  return [scan.id ?? '', scan.repo_path ?? '', scan.commit_sha ?? '', scan.status ?? ''].some((value) =>
+    value.toLowerCase().includes(query),
+  )
 }
 
 function summarizeIssue(record: ScanIssueRecord, index: number): string {
@@ -78,9 +114,10 @@ function summarizeIssue(record: ScanIssueRecord, index: number): string {
   )
 }
 
-const PAGE_SIZE = 25
-
-export function ScanHistoryPage({ initialSelectedScanId, onOpenIssuesForScan, searchQuery }: ScanHistoryPageProps) {
+export function ScanHistoryPage({
+  initialSelectedScanId,
+  onOpenIssuesForScan,
+}: ScanHistoryPageProps) {
   const [scans, setScans] = useState<ScanRecord[]>([])
   const [selectedScanId, setSelectedScanId] = useState<string | null>(initialSelectedScanId ?? null)
   const [loading, setLoading] = useState(true)
@@ -153,7 +190,8 @@ export function ScanHistoryPage({ initialSelectedScanId, onOpenIssuesForScan, se
   const pagedScans = filteredScans.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   const activeSelectedScanId = selectedScanId ?? filteredScans[0]?.id ?? null
-  const selectedScan = filteredScans.find((scan) => scan.id === activeSelectedScanId) ?? filteredScans[0] ?? null
+  const selectedScan =
+    filteredScans.find((scan) => scan.id === activeSelectedScanId) ?? filteredScans[0] ?? null
   const detailLoading = Boolean(activeSelectedScanId) && detailState.scanId !== activeSelectedScanId
 
   useEffect(() => {
@@ -206,13 +244,25 @@ export function ScanHistoryPage({ initialSelectedScanId, onOpenIssuesForScan, se
       totalScans === 0
         ? 0
         : Math.round(scans.reduce((sum, scan) => sum + clampScore(scan.rot_score), 0) / totalScans)
-    const completedScans = scans.filter((scan) => scan.status !== 'failed' && scan.status !== 'running' && scan.status !== 'queued').length
+    const completedScans = scans.filter(
+      (scan) => scan.status !== 'failed' && scan.status !== 'running' && scan.status !== 'queued',
+    ).length
     const successRate = totalScans === 0 ? 0 : Math.round((completedScans / totalScans) * 100)
 
     return [
       { label: 'Total Scans', value: `${totalScans}`, note: 'Backend synced', tone: 'positive' },
-      { label: 'Avg. Rot Score', value: `${averageScore}%`, note: 'Across all scan results', tone: 'neutral' },
-      { label: 'Success Rate', value: `${successRate}%`, note: `${completedScans} completed`, tone: 'positive' },
+      {
+        label: 'Avg. Rot Score',
+        value: `${averageScore}%`,
+        note: 'Across all scan results',
+        tone: 'neutral',
+      },
+      {
+        label: 'Success Rate',
+        value: `${successRate}%`,
+        note: `${completedScans} completed`,
+        tone: 'positive',
+      },
     ] as const
   }, [scans])
 
@@ -221,11 +271,19 @@ export function ScanHistoryPage({ initialSelectedScanId, onOpenIssuesForScan, se
   const reportSummary =
     toStringValue(selectedReport.summary) ||
     (Object.keys(reportSummaryBlock).length > 0
-      ? `Status: ${toStringValue(reportSummaryBlock.status, 'unknown')}, mismatches: ${toNumberValue(reportSummaryBlock.mismatch_count, toNumberValue(selectedScan?.mismatch_count, 0))}, rot score: ${Math.round(toNumberValue(reportSummaryBlock.rot_score, clampScore(selectedScan?.rot_score)))}`
+      ? `Status: ${toStringValue(reportSummaryBlock.status, 'unknown')}, mismatches: ${toNumberValue(
+          reportSummaryBlock.mismatch_count,
+          toNumberValue(selectedScan?.mismatch_count, 0),
+        )}, rot score: ${Math.round(
+          toNumberValue(reportSummaryBlock.rot_score, clampScore(selectedScan?.rot_score)),
+        )}`
       : 'No backend summary was provided for this scan.')
   const reportIssueCount = toNumberValue(
     selectedReport.mismatch_count,
-    toNumberValue(reportSummaryBlock.mismatch_count, toNumberValue(selectedScan?.mismatch_count, 0)),
+    toNumberValue(
+      reportSummaryBlock.mismatch_count,
+      toNumberValue(selectedScan?.mismatch_count, 0),
+    ),
   )
 
   return (
@@ -256,12 +314,18 @@ export function ScanHistoryPage({ initialSelectedScanId, onOpenIssuesForScan, se
             <option value="failed">Failed</option>
           </select>
         </div>
+
         <div className="scan-history-search">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
             <circle cx="11" cy="11" r="6.2" />
             <path d="m16 16 4.2 4.2" />
           </svg>
-          <input type="text" value={`${filteredScans.length} scans visible`} readOnly aria-label="Visible scan count" />
+          <input
+            type="text"
+            value={`${filteredScans.length} scans visible`}
+            readOnly
+            aria-label="Visible scan count"
+          />
         </div>
       </section>
 
@@ -270,12 +334,14 @@ export function ScanHistoryPage({ initialSelectedScanId, onOpenIssuesForScan, se
           {loading ? (
             <div className="page-placeholder">Loading scan history from the backend…</div>
           ) : filteredScans.length === 0 ? (
-            <div className="page-placeholder">{error ?? 'No scans match your current filters.'}</div>
+            <div className="page-placeholder">
+              {error ?? 'No scans match your current filters.'}
+            </div>
           ) : (
             <table className="scan-history-table">
               <thead>
                 <tr>
-                  <th>Scan ID</th>
+                  <th>Scan Run</th>
                   <th>Repository</th>
                   <th>Date/Time</th>
                   <th>Status</th>
@@ -290,26 +356,39 @@ export function ScanHistoryPage({ initialSelectedScanId, onOpenIssuesForScan, se
                   const isSelected = selectedScan?.id === scan.id
 
                   return (
-                    <tr key={scan.id} className={isSelected ? 'scan-history-row active' : 'scan-history-row'}>
+                    <tr
+                      key={scan.id}
+                      className={isSelected ? 'scan-history-row active' : 'scan-history-row'}
+                    >
                       <td className="scan-id-cell">
-                        <button className="scan-link-button" onClick={() => setSelectedScanId(scan.id)} type="button">
-                          {scan.id || 'Unknown'}
+                        <button
+                          className="scan-link-button"
+                          onClick={() => setSelectedScanId(scan.id)}
+                          type="button"
+                        >
+                          <div className="project-scan-cell">
+                            <strong>{formatScanRunLabel(scan.created_at)}</strong>
+                            <small>ID: {shortenScanId(scan.id)}</small>
+                          </div>
                         </button>
                       </td>
                       <td>{scan.repo_path ?? 'Unknown repository'}</td>
                       <td className="scan-date-cell">{formatDateTime(scan.created_at)}</td>
                       <td>
-                        <span className={`scan-status-pill ${statusTone}`}>{scan.status ?? 'completed'}</span>
+                        <span className={`scan-status-pill ${statusTone}`}>
+                          {scan.status ?? 'completed'}
+                        </span>
                       </td>
-                      <td className={(scan.mismatch_count ?? 0) > 0 ? 'scan-mismatch-critical' : undefined}>
+                      <td
+                        className={
+                          (scan.mismatch_count ?? 0) > 0 ? 'scan-mismatch-critical' : undefined
+                        }
+                      >
                         {scan.mismatch_count ?? 0}
                       </td>
                       <td>
-                        <div className="rot-score-cell">
-                          <div className="rot-track">
-                            <span className={score <= 20 ? 'healthy' : score <= 50 ? 'degrading' : 'critical'} style={{ width: `${score}%` }} />
-                          </div>
-                          <strong>{score}%</strong>
+                        <div className="project-gauge-cell">
+                          <RotGauge score={score} compact />
                         </div>
                       </td>
                     </tr>
@@ -329,13 +408,19 @@ export function ScanHistoryPage({ initialSelectedScanId, onOpenIssuesForScan, se
 
         <Card className="detail-card scan-detail-card" title="Scan Details">
           {!selectedScan ? (
-            <p className="detail-copy">Select a scan to inspect its report summary and detected issues.</p>
+            <p className="detail-copy">
+              Select a scan to inspect its report summary and detected issues.
+            </p>
           ) : (
             <>
               <div className="detail-grid">
                 <div>
-                  <p className="detail-label">Scan ID</p>
-                  <p>{selectedScan.id}</p>
+                  <p className="detail-label">Scan Run</p>
+                  <p>{formatScanRunLabel(selectedScan.created_at)}</p>
+                </div>
+                <div>
+                  <p className="detail-label">Scan Name</p>
+                  <p>{formatScanPseudoName(selectedScan)}</p>
                 </div>
                 <div>
                   <p className="detail-label">Status</p>
@@ -348,6 +433,10 @@ export function ScanHistoryPage({ initialSelectedScanId, onOpenIssuesForScan, se
                 <div>
                   <p className="detail-label">Commit SHA</p>
                   <p>{selectedScan.commit_sha ?? 'Not provided'}</p>
+                </div>
+                <div>
+                  <p className="detail-label">Captured At</p>
+                  <p>{formatDateTime(selectedScan.created_at)}</p>
                 </div>
                 <div>
                   <p className="detail-label">Mismatch Count</p>
@@ -379,7 +468,9 @@ export function ScanHistoryPage({ initialSelectedScanId, onOpenIssuesForScan, se
                 ) : (
                   <ul className="detail-list">
                     {detailState.issues.slice(0, 5).map((issue, index) => (
-                      <li key={`${activeSelectedScanId}-issue-${index}`}>{summarizeIssue(issue, index)}</li>
+                      <li key={`${activeSelectedScanId}-issue-${index}`}>
+                        {summarizeIssue(issue, index)}
+                      </li>
                     ))}
                   </ul>
                 )}
@@ -416,7 +507,11 @@ export function ScanHistoryPage({ initialSelectedScanId, onOpenIssuesForScan, se
               <div className="scan-detail-actions">
                 <span>{reportIssueCount} issue(s) linked to this scan</span>
                 {selectedScan.id && onOpenIssuesForScan ? (
-                  <button className="scan-btn" onClick={() => onOpenIssuesForScan(selectedScan.id)} type="button">
+                  <button
+                    className="scan-btn"
+                    onClick={() => onOpenIssuesForScan(selectedScan.id)}
+                    type="button"
+                  >
                     Open Issues
                   </button>
                 ) : null}

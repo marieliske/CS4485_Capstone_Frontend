@@ -14,59 +14,6 @@ const fallbackScanReport: ScanReportSummary = {
   lowCount: 0,
 }
 
-const fallbackIssues: Issue[] = [
-  {
-    id: 'DOC-201',
-    repoId: '',
-    issueNumber: 1,
-    title: 'run function behavior changed and docstring is stale',
-    description: 'Logic updates were detected but documentation still reflects prior behavior.',
-    mismatchType: 'signature-mismatch',
-    codeElement: 'src/run.py::run',
-    sourcePath: 'src/run.py',
-    docPath: 'src/run.py',
-    docSection: 'run',
-    status: 'open',
-    priority: 'high',
-    reason: 'docstring_stale',
-    symbol: 'src/run.py::run',
-    codeFile: 'src/run.py',
-    signature: "run(repo_path, commit_hash) -> Name(id='int', ctx=Load())",
-    detectorTag: 'docstring_stale',
-    score: 15,
-    changeSummary:
-      'literal/constant changed, branch condition changed, loop behavior changed, core control path added/removed',
-    suggestion: "Review documentation for 'src/run.py::run' - logic may have changed.",
-    createdAt: '2026-02-26T19:39:30.859618',
-    updatedAt: '2026-02-26T19:39:30.859618',
-  },
-  {
-    id: 'DOC-202',
-    repoId: '',
-    issueNumber: 2,
-    title: 'Architecture.md is flagged from linked code drift',
-    description: 'Documentation file was flagged due to cumulative code behavior changes.',
-    mismatchType: 'removed-api-reference',
-    codeElement: 'docs/Architecture.md',
-    sourcePath: 'src/run.py',
-    docPath: 'docs/Architecture.md',
-    docSection: 'File-level reference',
-    status: 'open',
-    priority: 'high',
-    reason: 'doc_file_flagged',
-    symbol: 'docs/Architecture.md',
-    codeFile: 'src/run.py',
-    detectorTag: 'doc_file_flagged',
-    score: 16,
-    cumulativeScore: 16,
-    changeSummary:
-      'literal/constant changed, branch condition changed, loop behavior changed, core control path added/removed',
-    suggestion: "Review 'docs/Architecture.md' - linked code logic has changed.",
-    createdAt: '2026-02-26T19:39:30.859618',
-    updatedAt: '2026-02-26T19:39:30.859618',
-  },
-]
-
 function buildSummary(issues: Issue[], repoPath?: string, commitHash?: string, scannedAt?: string): ScanReportSummary {
   const highCount = issues.filter((issue) => issue.priority === 'high').length
   const mediumCount = issues.filter((issue) => issue.priority === 'medium').length
@@ -81,6 +28,16 @@ function buildSummary(issues: Issue[], repoPath?: string, commitHash?: string, s
     mediumCount,
     lowCount,
   }
+}
+
+function getLatestIssueTimestamp(issues: Issue[]): string {
+  return (
+    issues
+      .map((issue) => issue.scanCreatedAt ?? issue.updatedAt)
+      .filter((value): value is string => Boolean(value))
+      .sort()
+      .at(-1) ?? fallbackScanReport.scannedAt
+  )
 }
 
 export function useIssues(scanId?: string | null) {
@@ -107,33 +64,37 @@ export function useIssues(scanId?: string | null) {
         }
 
         const selectedScan = scanId ? scans.find((scan) => scan.id === scanId) : scans[0]
-        const hasLiveData = liveIssues.length > 0 || Boolean(selectedScan)
+        const openLiveIssues = liveIssues.filter((issue) => issue.status === 'open')
+        const highCount = openLiveIssues.filter((issue) => issue.priority === 'high').length
+        const mediumCount = openLiveIssues.filter((issue) => issue.priority === 'medium').length
+        const lowCount = openLiveIssues.filter((issue) => issue.priority === 'low').length
+        const hasLiveData = liveIssues.length > 0 || scans.length > 0
 
         if (hasLiveData) {
           setIssues(liveIssues)
-          setResolvedScanId(selectedScan?.id ?? scanId ?? null)
-          setScanReport(
-            buildSummary(
-              liveIssues,
-              selectedScan?.repo_path,
-              selectedScan?.commit_sha,
-              selectedScan?.created_at,
-            ),
-          )
+          setScanReport({
+            repoPath: selectedScan?.repo_path ?? 'All repositories',
+            commitHash: selectedScan?.commit_sha ?? 'multiple',
+            scannedAt: selectedScan?.created_at ?? getLatestIssueTimestamp(liveIssues),
+            totalIssues: openLiveIssues.length,
+            highCount,
+            mediumCount,
+            lowCount,
+          })
           setError(null)
         } else {
-          setIssues(fallbackIssues)
-          setScanReport(buildSummary(fallbackIssues))
-          setError('No backend issues were returned yet, so sample data is shown.')
+          setIssues([])
+          setScanReport(buildSummary([]))
+          setError('No backend issues were returned yet.')
         }
       } catch (err) {
         if (cancelled) {
           return
         }
 
-        setIssues(fallbackIssues)
-        setScanReport(buildSummary(fallbackIssues))
-        setError(err instanceof Error ? `${err.message} Showing sample data instead.` : 'Showing sample data instead.')
+        setIssues([])
+        setScanReport(buildSummary([]))
+        setError(err instanceof Error ? err.message : 'Unable to load backend issues.')
       } finally {
         if (!cancelled) {
           setLoading(false)
@@ -148,7 +109,7 @@ export function useIssues(scanId?: string | null) {
     }
   }, [scanId])
 
-  const openIssues = useMemo(() => issues.filter((issue) => issue.status !== 'closed'), [issues])
+  const openIssues = useMemo(() => issues.filter((issue) => issue.status === 'open'), [issues])
 
   const closeIssue = useCallback(async (issueId: string) => {
     if (!resolvedScanId) return

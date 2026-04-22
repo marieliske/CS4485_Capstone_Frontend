@@ -16,7 +16,9 @@ const PAGE_SIZE = 25
 export function IssuesPage({ initialScanId, onOpenHistory, searchQuery }: IssuesPageProps) {
   const { issues, scanReport, loading, error, openIssues, closeIssue } = useIssues(initialScanId)
   const [query, setQuery] = useState('')
-  const [status, setStatus] = useState('all')
+  const [status, setStatus] = useState('open')
+  const [sortBy, setSortBy] = useState<'priority' | 'date' | 'repo'>('priority')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null)
   const [page, setPage] = useState(0)
 
@@ -27,8 +29,13 @@ export function IssuesPage({ initialScanId, onOpenHistory, searchQuery }: Issues
 
   const filteredIssues = useMemo(() => {
     const normalizedQuery = deferredQuery.trim().toLowerCase()
+    const priorityRank: Record<'high' | 'medium' | 'low', number> = {
+      high: 3,
+      medium: 2,
+      low: 1,
+    }
 
-    return issues.filter((issue) => {
+    const filtered = issues.filter((issue) => {
       const matchesStatus = status === 'all' || issue.status === status
       if (!matchesStatus) {
         return false
@@ -45,9 +52,32 @@ export function IssuesPage({ initialScanId, onOpenHistory, searchQuery }: Issues
         issue.docPath,
         issue.docSection,
         issue.symbol,
+        issue.repoPath ?? '',
       ].some((value) => value.toLowerCase().includes(normalizedQuery))
     })
-  }, [deferredQuery, issues, status])
+
+    filtered.sort((a, b) => {
+      let comparison = 0
+
+      if (sortBy === 'priority') {
+        comparison = priorityRank[a.priority] - priorityRank[b.priority]
+      } else if (sortBy === 'repo') {
+        comparison = (a.repoPath ?? '').localeCompare(b.repoPath ?? '')
+      } else {
+        const aTime = Date.parse(a.scanCreatedAt ?? a.updatedAt)
+        const bTime = Date.parse(b.scanCreatedAt ?? b.updatedAt)
+        comparison = aTime - bTime
+      }
+
+      if (comparison === 0) {
+        comparison = a.title.localeCompare(b.title)
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison
+    })
+
+    return filtered
+  }, [deferredQuery, issues, sortBy, sortDirection, status])
 
   const totalPages = Math.ceil(filteredIssues.length / PAGE_SIZE)
   const pagedIssues = filteredIssues.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
@@ -68,7 +98,10 @@ export function IssuesPage({ initialScanId, onOpenHistory, searchQuery }: Issues
           <div className="issues-context-meta">
             <span>Repo: {scanReport.repoPath}</span>
             <span>Commit: {scanReport.commitHash}</span>
-            <span>Scanned: {new Date(scanReport.scannedAt).toLocaleString()}</span>
+            <span> 
+              Latest run:{' '}
+              {scanReport.scannedAt ? new Date(scanReport.scannedAt).toLocaleString() : 'Not available'}
+            </span>
           </div>
         </div>
         <div className="issues-header-actions">
@@ -96,7 +129,16 @@ export function IssuesPage({ initialScanId, onOpenHistory, searchQuery }: Issues
       </div>
 
       <Card className="issues-filter-card">
-        <IssueFilters query={activeQuery} status={status} onQueryChange={setQuery} onStatusChange={setStatus} />
+        <IssueFilters
+          query={query}
+          status={status}
+          sortBy={sortBy}
+          sortDirection={sortDirection}
+          onQueryChange={setQuery}
+          onStatusChange={setStatus}
+          onSortByChange={setSortBy}
+          onSortDirectionChange={setSortDirection}
+        />
         <div className="issues-filter-meta">
           <span>
             Showing {filteredIssues.length} of {issues.length} issues
