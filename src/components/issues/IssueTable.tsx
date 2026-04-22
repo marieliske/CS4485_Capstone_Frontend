@@ -87,6 +87,16 @@ export function IssueTable({ issues, onSelect, onClose }: IssueTableProps) {
               >
                 View
               </button>
+              {issue.status !== 'closed' && onClose ? (
+                <button
+                  className="btn btn-ghost"
+                  style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #ccc' }}
+                  onClick={() => onClose(issue.id)}
+                  type="button"
+                >
+                  Close
+                </button>
+              ) : null}
             </div>
           ),
         },
