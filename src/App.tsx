@@ -78,6 +78,31 @@ function extractGitHubUsername(user: User): string | null {
   return null
 }
 
+async function resolveGitHubUsername(user: User): Promise<string | null> {
+  const extracted = extractGitHubUsername(user)
+  if (extracted) {
+    return extracted
+  }
+
+  const githubProviderInfo = user.providerData.find((provider) => provider.providerId === 'github.com')
+  const githubUid = githubProviderInfo?.uid ?? ''
+  if (!/^\d+$/.test(githubUid)) {
+    return null
+  }
+
+  try {
+    const response = await fetch(`https://api.github.com/user/${githubUid}`)
+    if (!response.ok) {
+      return null
+    }
+
+    const payload = (await response.json()) as { login?: unknown }
+    return typeof payload.login === 'string' ? normalizeHandle(payload.login) : null
+  } catch {
+    return null
+  }
+}
+
 function NavIcon({ children }: { children: ReactNode }) {
   return (
     <span className="app-nav-icon" aria-hidden="true">
@@ -416,11 +441,25 @@ function App() {
       return
     }
 
-    const username = extractGitHubUsername(user)
-    if (username) {
-      localStorage.setItem('docrot_github_username', username)
+    let cancelled = false
+
+    async function hydrateGithubUsername() {
+      const username = await resolveGitHubUsername(user)
+      if (cancelled) {
+        return
+      }
+
+      if (username) {
+        localStorage.setItem('docrot_github_username', username)
+      }
+      setGithubUsernameFilter(username)
     }
-    setGithubUsernameFilter(username)
+
+    void hydrateGithubUsername()
+
+    return () => {
+      cancelled = true
+    }
   }, [user])
 
   if (!firebaseConfigured) {
