@@ -445,8 +445,8 @@ function App() {
 
     let cancelled = false
 
-    async function hydrateGithubUsername() {
-      const username = await resolveGitHubUsername(currentUser)
+    async function hydrateGithubUsername(authenticatedUser: User) {
+      const username = await resolveGitHubUsername(authenticatedUser)
       if (cancelled) {
         return
       }
@@ -457,7 +457,7 @@ function App() {
       setGithubUsernameFilter(username)
     }
 
-    void hydrateGithubUsername()
+    void hydrateGithubUsername(currentUser)
 
     return () => {
       cancelled = true
