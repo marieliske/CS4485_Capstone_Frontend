@@ -15,6 +15,7 @@ import RotGauge from '../components/shared/RotGauge'
 interface ScanHistoryPageProps {
   initialSelectedScanId?: string | null
   onOpenIssuesForScan?: (scanId: string) => void
+  searchQuery?: string
 }
 
 interface ScanDetailState {
@@ -123,6 +124,7 @@ export function ScanHistoryPage({
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [page, setPage] = useState(0)
   const [detailState, setDetailState] = useState<ScanDetailState>({
     scanId: null,
     issues: [],
@@ -131,7 +133,10 @@ export function ScanHistoryPage({
     error: null,
   })
 
-  const deferredQuery = useDeferredValue(query)
+  const activeQuery = searchQuery !== undefined && searchQuery !== '' ? searchQuery : query
+  const deferredQuery = useDeferredValue(activeQuery)
+
+  useEffect(() => { setPage(0) }, [deferredQuery, statusFilter])
 
   useEffect(() => {
     let cancelled = false
@@ -180,6 +185,9 @@ export function ScanHistoryPage({
       return matchesQuery(scan, normalizedQuery)
     })
   }, [deferredQuery, scans, statusFilter])
+
+  const totalPages = Math.ceil(filteredScans.length / PAGE_SIZE)
+  const pagedScans = filteredScans.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   const activeSelectedScanId = selectedScanId ?? filteredScans[0]?.id ?? null
   const selectedScan =
@@ -342,7 +350,7 @@ export function ScanHistoryPage({
                 </tr>
               </thead>
               <tbody>
-                {filteredScans.map((scan) => {
+                {pagedScans.map((scan) => {
                   const statusTone = getStatusTone(scan.status)
                   const score = clampScore(scan.rot_score)
                   const isSelected = selectedScan?.id === scan.id
@@ -388,6 +396,13 @@ export function ScanHistoryPage({
                 })}
               </tbody>
             </table>
+          )}
+          {totalPages > 1 && (
+            <footer className="table-pagination">
+              <button type="button" className="btn btn-ghost" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</button>
+              <span>Page {page + 1} of {totalPages}</span>
+              <button type="button" className="btn btn-ghost" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>Next</button>
+            </footer>
           )}
         </section>
 

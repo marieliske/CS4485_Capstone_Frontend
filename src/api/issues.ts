@@ -148,6 +148,10 @@ function normalizeIssue(rawPayload: unknown, index: number, scan: ScanRecord): I
   }
 }
 
+export async function closeIssue(repoId: string, scanId: string, issueId: string): Promise<void> {
+  await firestoreCloseIssue(repoId, scanId, issueId)
+}
+
 export async function getIssues(scanId?: string) {
   const scans = await getScans()
   if (scans.length === 0) {

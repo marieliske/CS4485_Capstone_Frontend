@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
-import { getIssues } from '../api/issues'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { getIssues, closeIssue as apiCloseIssue } from '../api/issues'
 import { getScans } from '../api/scans'
+import { measure } from '../utils/perf'
 import type { Issue, ScanReportSummary } from '../types/issue'
 
 const fallbackScanReport: ScanReportSummary = {
@@ -44,16 +45,19 @@ export function useIssues(scanId?: string | null) {
   const [scanReport, setScanReport] = useState<ScanReportSummary>(fallbackScanReport)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [resolvedScanId, setResolvedScanId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
 
     async function loadIssues() {
       try {
-        const [liveIssues, scans] = await Promise.all([
-          getIssues(scanId ?? undefined),
-          getScans().catch(() => []),
-        ])
+        const [liveIssues, scans] = await measure(`useIssues:load${scanId ? `:${scanId}` : ''}`, () =>
+          Promise.all([
+            getIssues(scanId ?? undefined),
+            getScans().catch(() => []),
+          ])
+        )
 
         if (cancelled) {
           return
@@ -107,11 +111,28 @@ export function useIssues(scanId?: string | null) {
 
   const openIssues = useMemo(() => issues.filter((issue) => issue.status === 'open'), [issues])
 
+  const closeIssue = useCallback(async (issueId: string) => {
+    if (!resolvedScanId) return
+    const repoId = issues.find((i) => i.id === issueId)?.repoId
+    if (!repoId) return
+    setIssues((prev) =>
+      prev.map((issue) => (issue.id === issueId ? { ...issue, status: 'closed' as const } : issue)),
+    )
+    try {
+      await apiCloseIssue(repoId, resolvedScanId, issueId)
+    } catch {
+      setIssues((prev) =>
+        prev.map((issue) => (issue.id === issueId ? { ...issue, status: 'open' as const } : issue)),
+      )
+    }
+  }, [resolvedScanId, issues])
+
   return {
     issues,
     scanReport,
     loading,
     error,
     openIssues,
+    closeIssue,
   }
 }

@@ -182,7 +182,9 @@ function toProjectRow(repoName: string, scans: ScanRecord[]): ProjectRow {
   }
 }
 
-export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
+const PAGE_SIZE = 25
+
+export function ProjectsPage({ onInspectProject, searchQuery }: ProjectsPageProps) {
   const [projectRows, setProjectRows] = useState<ProjectRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -194,7 +196,7 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
   const [expandedIssues, setExpandedIssues] = useState<Record<string, ScanIssueRecord[]>>({})
   const [expandedLoadingKey, setExpandedLoadingKey] = useState<string | null>(null)
 
-  const deferredQuery = useDeferredValue(query)
+  useEffect(() => { setPage(0) }, [deferredQuery])
 
   useEffect(() => {
     let cancelled = false
@@ -259,6 +261,9 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
       ),
     )
   }, [deferredQuery, projectRows])
+
+  const totalPages = Math.ceil(filteredRows.length / PAGE_SIZE)
+  const pagedRows = filteredRows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   const latestUpdated = projectRows
     .map((project) => project.lastUpdated)
@@ -386,7 +391,7 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
           className="scan-history-search-input"
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search project or repository path"
-          value={query}
+          value={activeQuery}
         />
         <span className="projects-filter-btn">Showing {filteredRows.length} projects</span>
       </div>
