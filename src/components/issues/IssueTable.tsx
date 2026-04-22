@@ -21,6 +21,10 @@ export function IssueTable({ issues, onSelect, onClose }: IssueTableProps) {
     return 'danger'
   }
 
+  if (!issues.length) {
+    return <p style={{ padding: '16px' }}>No documentation alerts found 🎉</p>
+  }
+
   return (
     <Table
       columns={[
@@ -44,7 +48,7 @@ export function IssueTable({ issues, onSelect, onClose }: IssueTableProps) {
           label: 'Severity',
           render: (issue) => {
             const variant = issue.priority === 'high' ? 'danger' : issue.priority === 'medium' ? 'warning' : 'info'
-            return <Badge variant={variant}>{issue.priority}</Badge>
+            return <Badge variant={variant}>{issue.priority.toUpperCase()}</Badge>
           },
         },
         {
@@ -60,21 +64,29 @@ export function IssueTable({ issues, onSelect, onClose }: IssueTableProps) {
         {
           key: 'status',
           label: 'Status',
-          render: (issue) => <Badge variant={getStatusVariant(issue.status)}>{issue.status}</Badge>,
+          render: (issue) => (
+            <Badge variant={getStatusVariant(issue.status)}>
+              {issue.status === 'closed'
+                ? 'Resolved'
+                : issue.status === 'in-progress'
+                ? 'Under Review'
+                : 'Flagged'}
+            </Badge>
+          ),
         },
         {
           key: 'id',
           label: 'Actions',
           render: (issue) => (
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button className="btn btn-ghost" onClick={() => onSelect(issue)} type="button">
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                className="btn btn-ghost"
+                style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #ccc' }}
+                onClick={() => onSelect(issue)}
+                type="button"
+              >
                 View
               </button>
-              {issue.status !== 'closed' && onClose ? (
-                <button className="btn btn-ghost" onClick={() => onClose(issue.id)} type="button">
-                  Close
-                </button>
-              ) : null}
             </div>
           ),
         },
