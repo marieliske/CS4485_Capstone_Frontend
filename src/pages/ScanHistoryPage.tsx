@@ -54,6 +54,32 @@ function formatDateTime(value?: string): string {
   return parsed.toLocaleString()
 }
 
+function formatScanRunLabel(value?: string): string {
+  if (!value) {
+    return 'Recent scan'
+  }
+
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return 'Recent scan'
+  }
+
+  return parsed.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+function shortenScanId(id?: string): string {
+  if (!id) {
+    return 'Unavailable'
+  }
+
+  return id.length > 8 ? `${id.slice(0, 8)}…` : id
+}
+
 function getStatusTone(status?: string): 'completed' | 'failed' | 'progress' {
   if (status === 'failed') {
     return 'failed'
@@ -303,7 +329,7 @@ export function ScanHistoryPage({
             <table className="scan-history-table">
               <thead>
                 <tr>
-                  <th>Scan ID</th>
+                  <th>Scan Run</th>
                   <th>Repository</th>
                   <th>Date/Time</th>
                   <th>Status</th>
@@ -328,7 +354,10 @@ export function ScanHistoryPage({
                           onClick={() => setSelectedScanId(scan.id)}
                           type="button"
                         >
-                          {scan.id || 'Unknown'}
+                          <div className="project-scan-cell">
+                            <strong>{formatScanRunLabel(scan.created_at)}</strong>
+                            <small>ID: {shortenScanId(scan.id)}</small>
+                          </div>
                         </button>
                       </td>
                       <td>{scan.repo_path ?? 'Unknown repository'}</td>
@@ -367,6 +396,10 @@ export function ScanHistoryPage({
             <>
               <div className="detail-grid">
                 <div>
+                  <p className="detail-label">Scan Run</p>
+                  <p>{formatScanRunLabel(selectedScan.created_at)}</p>
+                </div>
+                <div>
                   <p className="detail-label">Scan ID</p>
                   <p>{selectedScan.id}</p>
                 </div>
@@ -381,6 +414,10 @@ export function ScanHistoryPage({
                 <div>
                   <p className="detail-label">Commit SHA</p>
                   <p>{selectedScan.commit_sha ?? 'Not provided'}</p>
+                </div>
+                <div>
+                  <p className="detail-label">Captured At</p>
+                  <p>{formatDateTime(selectedScan.created_at)}</p>
                 </div>
                 <div>
                   <p className="detail-label">Mismatch Count</p>

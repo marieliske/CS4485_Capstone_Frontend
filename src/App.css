@@ -4900,3 +4900,21 @@
     padding: 12px;
   }
 }
+
+.scan-id-meta {
+  opacity: 0.75;
+}
+
+.project-scan-cell strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.project-scan-cell small {
+  display: block;
+  line-height: 1.35;
+}
+
+.scan-link-button .project-scan-cell {
+  text-align: left;
+}

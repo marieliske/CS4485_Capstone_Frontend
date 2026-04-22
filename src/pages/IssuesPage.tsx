@@ -58,7 +58,10 @@ export function IssuesPage({ initialScanId, onOpenHistory }: IssuesPageProps) {
           <div className="issues-context-meta">
             <span>Repo: {scanReport.repoPath}</span>
             <span>Commit: {scanReport.commitHash}</span>
-            <span>Scanned: {new Date(scanReport.scannedAt).toLocaleString()}</span>
+            <span> 
+              Latest run:{' '}
+              {scanReport.scannedAt ? new Date(scanReport.scannedAt).toLocaleString() : 'Not available'}
+            </span>
           </div>
         </div>
         <div className="issues-header-actions">

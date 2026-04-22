@@ -77,6 +77,32 @@ function formatRelativeTime(value?: string): string {
   return `${days}d ago`
 }
 
+function formatScanRunLabel(value?: string): string {
+  if (!value) {
+    return 'Recent scan'
+  }
+
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return 'Recent scan'
+  }
+
+  return parsed.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+function shortenScanId(id?: string): string {
+  if (!id) {
+    return 'Unavailable'
+  }
+
+  return id.length > 8 ? `${id.slice(0, 8)}…` : id
+}
+
 function getStatusTone(score: number, mismatchCount: number): ProjectRow['statusTone'] {
   if (score <= 20 && mismatchCount === 0) {
     return 'healthy'
@@ -400,12 +426,12 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
                       </td>
                       <td>
                         <div className="project-scan-cell">
-                          <strong>{project.latestScanId ?? 'Unavailable'}</strong>
+                          <strong>{formatScanRunLabel(project.lastUpdated)}</strong>
                           <small>
-                            {project.scanCount} scan{project.scanCount === 1 ? '' : 's'} •{' '}
-                            {project.latestMismatchCount} mismatch
+                            {project.scanCount} scan{project.scanCount === 1 ? '' : 's'} • {project.latestMismatchCount} mismatch
                             {project.latestMismatchCount === 1 ? '' : 'es'}
                           </small>
+                          <small className="scan-id-meta">ID: {shortenScanId(project.latestScanId)}</small>
                         </div>
                       </td>
                       <td>
@@ -453,11 +479,10 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
                               </div>
 
                               <div className="project-details-card">
-                                <p className="detail-label">Latest Update</p>
-                                <p className="detail-copy">
-                                  {project.lastUpdated
-                                    ? formatRelativeTime(project.lastUpdated)
-                                    : 'No recent scan timestamp available'}
+                                <p className="detail-label">Latest Run</p>
+                                <p className="detail-copy">{formatScanRunLabel(project.lastUpdated)}</p>
+                                <p className="detail-copy" style={{ opacity: 0.75 }}>
+                                  Scan ref: {shortenScanId(project.latestScanId)}
                                 </p>
                               </div>
                             </div>
