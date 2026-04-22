@@ -26,6 +26,8 @@ interface ScanDetailState {
   error: string | null
 }
 
+const PAGE_SIZE = 25
+
 function toNumberValue(value: unknown, fallback = 0): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
 }
@@ -117,6 +119,7 @@ function summarizeIssue(record: ScanIssueRecord, index: number): string {
 export function ScanHistoryPage({
   initialSelectedScanId,
   onOpenIssuesForScan,
+  searchQuery,
 }: ScanHistoryPageProps) {
   const [scans, setScans] = useState<ScanRecord[]>([])
   const [selectedScanId, setSelectedScanId] = useState<string | null>(initialSelectedScanId ?? null)

@@ -436,7 +436,9 @@ function App() {
   const { user, loading } = useAuth()
 
   useEffect(() => {
-    if (!user) {
+    const currentUser = user
+
+    if (!currentUser) {
       setGithubUsernameFilter(null)
       return
     }
@@ -444,7 +446,7 @@ function App() {
     let cancelled = false
 
     async function hydrateGithubUsername() {
-      const username = await resolveGitHubUsername(user)
+      const username = await resolveGitHubUsername(currentUser)
       if (cancelled) {
         return
       }

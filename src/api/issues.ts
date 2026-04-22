@@ -1,6 +1,7 @@
 import { asObject } from './client'
 import { getScans, getScanIssues } from './scans'
 import type { ScanRecord } from './scans'
+import { closeIssue as firestoreCloseIssue } from './firestore'
 import type { Issue } from '../types/issue'
 
 function parsePriority(value: unknown): Issue['priority'] {
@@ -120,6 +121,7 @@ function normalizeIssue(rawPayload: unknown, index: number, scan: ScanRecord): I
   return {
     id: `${scanId}:${baseId}`,
     scanId,
+    repoId: toStringValue(raw._repoId),
     repoPath: toStringValue(scan.repo_path, 'unknown-repo'),
     scanCreatedAt: toStringValue(scan.created_at, updatedAt),
     issueNumber,

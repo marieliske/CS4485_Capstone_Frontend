@@ -45,7 +45,6 @@ export function useIssues(scanId?: string | null) {
   const [scanReport, setScanReport] = useState<ScanReportSummary>(fallbackScanReport)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [resolvedScanId, setResolvedScanId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -112,20 +111,24 @@ export function useIssues(scanId?: string | null) {
   const openIssues = useMemo(() => issues.filter((issue) => issue.status === 'open'), [issues])
 
   const closeIssue = useCallback(async (issueId: string) => {
-    if (!resolvedScanId) return
-    const repoId = issues.find((i) => i.id === issueId)?.repoId
-    if (!repoId) return
+    const targetIssue = issues.find((issue) => issue.id === issueId)
+    const repoId = targetIssue?.repoId
+    const targetScanId = targetIssue?.scanId
+    if (!repoId || !targetScanId) return
+
+    const backendIssueId = issueId.includes(':') ? issueId.split(':').slice(1).join(':') : issueId
+
     setIssues((prev) =>
       prev.map((issue) => (issue.id === issueId ? { ...issue, status: 'closed' as const } : issue)),
     )
     try {
-      await apiCloseIssue(repoId, resolvedScanId, issueId)
+      await apiCloseIssue(repoId, targetScanId, backendIssueId)
     } catch {
       setIssues((prev) =>
         prev.map((issue) => (issue.id === issueId ? { ...issue, status: 'open' as const } : issue)),
       )
     }
-  }, [resolvedScanId, issues])
+  }, [issues])
 
   return {
     issues,
