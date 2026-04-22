@@ -109,6 +109,8 @@ function BellIcon() {
 function AppShell() {
   const { user, logout } = useAuth()
   const [activePage, setActivePage] = useState<PageKey>('dashboard')
+  const [historyScanId, setHistoryScanId] = useState<string | null>(null)
+  const [issuesScanId, setIssuesScanId] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [topbarQuery, setTopbarQuery] = useState('')
 
@@ -116,11 +118,13 @@ function AppShell() {
     setActivePage(page)
   }
 
-  const openHistory = () => {
+  const openHistory = (scanId?: string) => {
+    setHistoryScanId(scanId ?? null)
     setActivePage('scanHistory')
   }
 
-  const openIssues = () => {
+  const openIssues = (scanId?: string) => {
+    setIssuesScanId(scanId ?? null)
     setActivePage('issues')
   }
 
@@ -207,12 +211,17 @@ function AppShell() {
 
   if (activePage === 'issues') {
     pageTitle = 'Issues'
-    pageContent = <IssuesPage onOpenHistory={openHistory} />
+    pageContent = <IssuesPage initialScanId={issuesScanId} onOpenHistory={openHistory} />
   }
 
   if (activePage === 'scanHistory') {
     pageTitle = 'Scan History'
-    pageContent = <ScanHistoryPage />
+    pageContent = (
+      <ScanHistoryPage
+        initialSelectedScanId={historyScanId}
+        onOpenIssuesForScan={(scanId) => openIssues(scanId)}
+      />
+    )
   }
 
   if (activePage === 'configuration') {
