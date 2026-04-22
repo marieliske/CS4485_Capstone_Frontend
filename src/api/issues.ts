@@ -164,12 +164,7 @@ export async function getIssues(scanId?: string) {
     return rawIssues.map((issue, index) => normalizeIssue(issue, index, selectedScan))
   }
 
-  const issuesPerScan = await Promise.all(
-    scans.map(async (scan) => {
-      const rawIssues = await getScanIssues(scan.id)
-      return rawIssues.map((issue, index) => normalizeIssue(issue, index, scan))
-    }),
-  )
-
-  return issuesPerScan.flat()
+  const latestScan = scans[0]
+  const rawIssues = await getScanIssues(latestScan.id)
+  return rawIssues.map((issue, index) => normalizeIssue(issue, index, latestScan))
 }
