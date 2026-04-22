@@ -1,3 +1,5 @@
+import { useId } from 'react'
+
 type RotGaugeProps = {
   score: number
   compact?: boolean
@@ -12,6 +14,7 @@ function getGaugeLabel(score: number) {
 }
 
 export default function RotGauge({ score, compact = false }: RotGaugeProps) {
+  const gradientId = `rotGaugeGradient-${useId().replace(/:/g, '')}`
   const clamped = Math.max(0, Math.min(100, Math.round(score)))
   const radius = compact ? 54 : 84
   const width = compact ? 150 : 240
@@ -31,7 +34,7 @@ export default function RotGauge({ score, compact = false }: RotGaugeProps) {
     <div className={`rot-gauge ${compact ? 'compact' : ''}`}>
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="rot-gauge-svg">
         <defs>
-          <linearGradient id="rotGaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stopColor="#22c55e" />
             <stop offset="45%" stopColor="#f59e0b" />
             <stop offset="100%" stopColor="#ef4444" />
@@ -49,7 +52,7 @@ export default function RotGauge({ score, compact = false }: RotGaugeProps) {
         <path
           d={`M ${startX} ${baseY} A ${radius} ${radius} 0 0 1 ${endX} ${baseY}`}
           fill="none"
-          stroke="url(#rotGaugeGradient)"
+          stroke={`url(#${gradientId})`}
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={circumference}
