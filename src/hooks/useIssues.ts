@@ -80,6 +80,16 @@ function buildSummary(issues: Issue[], repoPath?: string, commitHash?: string, s
   }
 }
 
+function getLatestIssueTimestamp(issues: Issue[]): string {
+  return (
+    issues
+      .map((issue) => issue.scanCreatedAt ?? issue.updatedAt)
+      .filter((value): value is string => Boolean(value))
+      .sort()
+      .at(-1) ?? fallbackScanReport.scannedAt
+  )
+}
+
 export function useIssues(scanId?: string | null) {
   const [issues, setIssues] = useState<Issue[]>([])
   const [scanReport, setScanReport] = useState<ScanReportSummary>(fallbackScanReport)
@@ -100,19 +110,24 @@ export function useIssues(scanId?: string | null) {
           return
         }
 
-        const selectedScan = scanId ? scans.find((scan) => scan.id === scanId) : scans[0]
+        const selectedScan = scanId ? scans.find((scan) => scan.id === scanId) : undefined
+        const openLiveIssues = liveIssues.filter((issue) => issue.status === 'open')
+        const highCount = openLiveIssues.filter((issue) => issue.priority === 'high').length
+        const mediumCount = openLiveIssues.filter((issue) => issue.priority === 'medium').length
+        const lowCount = openLiveIssues.filter((issue) => issue.priority === 'low').length
         const hasLiveData = liveIssues.length > 0 || Boolean(selectedScan)
 
         if (hasLiveData) {
           setIssues(liveIssues)
-          setScanReport(
-            buildSummary(
-              liveIssues,
-              selectedScan?.repo_path,
-              selectedScan?.commit_sha,
-              selectedScan?.created_at,
-            ),
-          )
+          setScanReport({
+            repoPath: selectedScan?.repo_path ?? 'All repositories',
+            commitHash: selectedScan?.commit_sha ?? 'multiple',
+            scannedAt: selectedScan?.created_at ?? getLatestIssueTimestamp(liveIssues),
+            totalIssues: openLiveIssues.length,
+            highCount,
+            mediumCount,
+            lowCount,
+          })
           setError(null)
         } else {
           setIssues(fallbackIssues)
@@ -141,7 +156,7 @@ export function useIssues(scanId?: string | null) {
     }
   }, [scanId])
 
-  const openIssues = useMemo(() => issues.filter((issue) => issue.status !== 'closed'), [issues])
+  const openIssues = useMemo(() => issues.filter((issue) => issue.status === 'open'), [issues])
 
   return {
     issues,

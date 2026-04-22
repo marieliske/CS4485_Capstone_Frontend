@@ -55,7 +55,7 @@ function toRepoRecord(id: string, data: DocumentData): RepoRecord {
 }
 
 function belongsToUser(repo: RepoRecord): boolean {
-  if (!_githubUsername) return true
+  if (!_githubUsername) return false
   const owner = repo.full_name.split('/')[0]
   return owner.toLowerCase() === _githubUsername.toLowerCase()
 }

@@ -47,6 +47,16 @@ export function IssueTable({ issues, onSelect }: IssueTableProps) {
           },
         },
         {
+          key: 'repoPath',
+          label: 'Repo',
+          render: (issue) => issue.repoPath ?? 'unknown-repo',
+        },
+        {
+          key: 'updatedAt',
+          label: 'Last Updated',
+          render: (issue) => new Date(issue.scanCreatedAt ?? issue.updatedAt).toLocaleString(),
+        },
+        {
           key: 'status',
           label: 'Status',
           render: (issue) => <Badge variant={getStatusVariant(issue.status)}>{issue.status}</Badge>,

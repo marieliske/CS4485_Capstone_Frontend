@@ -80,6 +80,10 @@ function shortenScanId(id?: string): string {
   return id.length > 8 ? `${id.slice(0, 8)}…` : id
 }
 
+function formatScanPseudoName(scan: ScanRecord): string {
+  return `${formatScanRunLabel(scan.created_at)} (${formatDateTime(scan.created_at)})`
+}
+
 function getStatusTone(status?: string): 'completed' | 'failed' | 'progress' {
   if (status === 'failed') {
     return 'failed'
@@ -400,8 +404,8 @@ export function ScanHistoryPage({
                   <p>{formatScanRunLabel(selectedScan.created_at)}</p>
                 </div>
                 <div>
-                  <p className="detail-label">Scan ID</p>
-                  <p>{selectedScan.id}</p>
+                  <p className="detail-label">Scan Name</p>
+                  <p>{formatScanPseudoName(selectedScan)}</p>
                 </div>
                 <div>
                   <p className="detail-label">Status</p>

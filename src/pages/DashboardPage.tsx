@@ -76,6 +76,20 @@ function formatRelativeTime(value?: string): string {
   return `${days}d ago`
 }
 
+function formatScanPseudoName(scan: ScanRecord, fallbackIndex: number): string {
+  const parsed = scan.created_at ? new Date(scan.created_at) : null
+  if (parsed && !Number.isNaN(parsed.getTime())) {
+    return `Scan ${parsed.toLocaleString([], {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    })}`
+  }
+
+  return `Scan ${fallbackIndex + 1}`
+}
+
 function StatIcon({ type }: { type: 'folder' | 'search' | 'warning' | 'chart' }) {
   if (type === 'folder') {
     return (
@@ -238,7 +252,7 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
 
       return {
         scanId: scan.id,
-        title: `Scan Completed: ${scan.id || `Scan ${index + 1}`}`,
+        title: `Scan Completed: ${formatScanPseudoName(scan, index)}`,
         subtitle:
           mismatches !== null
             ? `Detected ${mismatches} potential mismatch${mismatches === 1 ? '' : 'es'} in this run.`

@@ -1,5 +1,7 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import type { User } from 'firebase/auth'
 import { firebaseConfigured, firebaseMissingEnvKeys } from './firebase'
+import { setGithubUsernameFilter } from './api/firestore'
 import { DashboardPage } from './pages/DashboardPage'
 import { ProjectsPage } from './pages/ProjectsPage'
 import { IssuesPage } from './pages/IssuesPage'
@@ -19,6 +21,62 @@ type PageKey =
   | 'configuration'
   | 'wf-user-settings'
   | 'scanHistory'
+
+const githubHandlePattern = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i
+
+function normalizeHandle(value: string | null | undefined): string | null {
+  const normalized = value?.trim().toLowerCase() ?? ''
+  return githubHandlePattern.test(normalized) ? normalized : null
+}
+
+function extractGitHubUsername(user: User): string | null {
+  const stored = normalizeHandle(localStorage.getItem('docrot_github_username'))
+  if (stored) {
+    return stored
+  }
+
+  const rawUser = user as unknown as {
+    reloadUserInfo?: {
+      screenName?: unknown
+      screen_name?: unknown
+      login?: unknown
+    }
+  }
+
+  const reloadScreenName = rawUser.reloadUserInfo?.screenName
+  if (typeof reloadScreenName === 'string') {
+    const parsed = normalizeHandle(reloadScreenName)
+    if (parsed) return parsed
+  }
+
+  const reloadSnakeScreenName = rawUser.reloadUserInfo?.screen_name
+  if (typeof reloadSnakeScreenName === 'string') {
+    const parsed = normalizeHandle(reloadSnakeScreenName)
+    if (parsed) return parsed
+  }
+
+  const reloadLogin = rawUser.reloadUserInfo?.login
+  if (typeof reloadLogin === 'string') {
+    const parsed = normalizeHandle(reloadLogin)
+    if (parsed) return parsed
+  }
+
+  const githubProviderInfo = user.providerData.find((provider) => provider.providerId === 'github.com')
+
+  const providerDisplayName = normalizeHandle(githubProviderInfo?.displayName)
+  if (providerDisplayName) {
+    return providerDisplayName
+  }
+
+  const email = user.email ?? ''
+  const noreplyMatch = email.match(/^\d+\+([a-z\d-]+)@users\.noreply\.github\.com$/i)
+  if (noreplyMatch?.[1]) {
+    const parsed = normalizeHandle(noreplyMatch[1])
+    if (parsed) return parsed
+  }
+
+  return null
+}
 
 function NavIcon({ children }: { children: ReactNode }) {
   return (
@@ -343,6 +401,19 @@ function AppShell() {
 function App() {
   const { user, loading } = useAuth()
 
+  useEffect(() => {
+    if (!user) {
+      setGithubUsernameFilter(null)
+      return
+    }
+
+    const username = extractGitHubUsername(user)
+    if (username) {
+      localStorage.setItem('docrot_github_username', username)
+    }
+    setGithubUsernameFilter(username)
+  }, [user])
+
   if (!firebaseConfigured) {
     return (
       <div
@@ -385,7 +456,11 @@ function App() {
   ) : (
     <AuthPage
       onAuthenticate={(username) => {
-        if (username) localStorage.setItem('docrot_github_username', username)
+        const normalized = normalizeHandle(username)
+        if (normalized) {
+          localStorage.setItem('docrot_github_username', normalized)
+          setGithubUsernameFilter(normalized)
+        }
       }}
     />
   )
