@@ -1536,11 +1536,13 @@
   background: linear-gradient(180deg, #0f1d34 0%, #101b2f 100%);
   border: 1px solid #1b2e4f;
   border-radius: 12px;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .projects-table {
   border-collapse: collapse;
+  min-width: 1080px;
   width: 100%;
 }
 
@@ -1550,16 +1552,18 @@
   font-size: 0.73rem;
   font-weight: 700;
   letter-spacing: 0.06em;
-  padding: 13px 16px;
+  padding: 16px 14px;
   text-align: left;
   text-transform: uppercase;
+  vertical-align: middle;
 }
 
 .projects-table td {
   border-bottom: 1px solid #1a2d4b;
   color: #cfe0f7;
   font-size: 0.94rem;
-  padding: 14px 16px;
+  padding: 16px 14px;
+  vertical-align: middle;
 }
 
 .projects-table tr:last-child td {
@@ -2650,14 +2654,6 @@
 
   .standard-grid {
     grid-template-columns: 1fr;
-  }
-
-  .projects-table-shell {
-    overflow-x: auto;
-  }
-
-  .projects-table {
-    min-width: 780px;
   }
 
   .issues-header {
@@ -4704,10 +4700,6 @@
     grid-template-columns: 220px 1fr;
   }
 
-  .projects-table {
-    min-width: 1100px;
-  }
-
   .scan-history-workspace {
     grid-template-columns: 1fr;
   }
@@ -4804,21 +4796,6 @@
 
 .project-issues-list li {
   line-height: 1.4;
-}
-
-.projects-table-shell {
-  overflow-x: auto;
-}
-
-.projects-table {
-  width: 100%;
-  min-width: 1080px;
-}
-
-.projects-table th,
-.projects-table td {
-  padding: 16px 14px;
-  vertical-align: middle;
 }
 
 .project-gauge-cell {
