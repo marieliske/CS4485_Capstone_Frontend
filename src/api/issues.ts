@@ -1,5 +1,7 @@
 import { asObject } from './client'
 import { getScans, getScanIssues } from './scans'
+import type { ScanRecord } from './scans'
+import { closeIssue as firestoreCloseIssue } from './firestore'
 import type { Issue } from '../types/issue'
 
 function parsePriority(value: unknown): Issue['priority'] {
@@ -64,12 +66,13 @@ function toNumberValue(value: unknown, fallback = 0): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
 }
 
-function normalizeIssue(rawPayload: unknown, index: number, scanId: string): Issue {
+function normalizeIssue(rawPayload: unknown, index: number, scan: ScanRecord): Issue {
   const raw = asObject(rawPayload)
   const codeElement = asObject(raw.code_element)
   const docReference = asObject(raw.doc_reference)
   const nestedCode = asObject(raw.code)
   const nestedDoc = asObject(raw.doc)
+  const scanId = scan.id
 
   const reason = toStringValue(raw.reason, toStringValue(raw.type, 'backend-issue'))
   const codePath = toStringValue(
@@ -113,8 +116,14 @@ function normalizeIssue(rawPayload: unknown, index: number, scanId: string): Iss
   const rawMismatchType = toStringValue(raw.mismatchType)
   const mismatchType = rawMismatchType ? parseMismatchType(rawMismatchType) : inferMismatchType(reason)
 
+  const baseId = toStringValue(raw.id, `issue-${index + 1}`)
+
   return {
-    id: toStringValue(raw.id, `${scanId}-issue-${index + 1}`),
+    id: `${scanId}:${baseId}`,
+    scanId,
+    repoId: toStringValue(raw._repoId),
+    repoPath: toStringValue(scan.repo_path, 'unknown-repo'),
+    scanCreatedAt: toStringValue(scan.created_at, updatedAt),
     issueNumber,
     title: toStringValue(raw.title, toStringValue(raw.message, `Issue ${index + 1}`)),
     description: toStringValue(raw.description, toStringValue(raw.message, 'Documentation mismatch detected.')),
@@ -141,18 +150,32 @@ function normalizeIssue(rawPayload: unknown, index: number, scanId: string): Iss
   }
 }
 
+export async function closeIssue(repoId: string, scanId: string, issueId: string): Promise<void> {
+  await firestoreCloseIssue(repoId, scanId, issueId)
+}
+
 export async function getIssues(scanId?: string) {
-  let resolvedScanId = scanId
-
-  if (!resolvedScanId) {
-    const scans = await getScans()
-    resolvedScanId = scans[0]?.id
-  }
-
-  if (!resolvedScanId) {
+  const scans = await getScans()
+  if (scans.length === 0) {
     return []
   }
 
-  const rawIssues = await getScanIssues(resolvedScanId)
-  return rawIssues.map((issue, index) => normalizeIssue(issue, index, resolvedScanId!))
+  if (scanId) {
+    const selectedScan = scans.find((scan) => scan.id === scanId)
+    if (!selectedScan) {
+      return []
+    }
+
+    const rawIssues = await getScanIssues(selectedScan.id)
+    return rawIssues.map((issue, index) => normalizeIssue(issue, index, selectedScan))
+  }
+
+  const issuesPerScan = await Promise.all(
+    scans.map(async (scan) => {
+      const rawIssues = await getScanIssues(scan.id)
+      return rawIssues.map((issue, index) => normalizeIssue(issue, index, scan))
+    }),
+  )
+
+  return issuesPerScan.flat()
 }

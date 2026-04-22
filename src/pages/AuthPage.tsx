@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { signInWithPopup, getAdditionalUserInfo } from 'firebase/auth'
+import { signInWithPopup, getAdditionalUserInfo, GithubAuthProvider } from 'firebase/auth'
 import { auth, githubProvider } from '../firebase'
 
 export type AuthMode = 'sign-in' | 'sign-up'
@@ -54,13 +54,42 @@ export function AuthPage({ onAuthenticate }: AuthPageProps) {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
+  async function resolveGitHubUsername(result: Awaited<ReturnType<typeof signInWithPopup>>): Promise<string | undefined> {
+    const additionalInfo = getAdditionalUserInfo(result)
+    if (additionalInfo?.username) {
+      return additionalInfo.username
+    }
+
+    const credential = GithubAuthProvider.credentialFromResult(result)
+    const accessToken = credential?.accessToken
+    if (!accessToken) {
+      return undefined
+    }
+
+    try {
+      const response = await fetch('https://api.github.com/user', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
+
+      if (!response.ok) {
+        return undefined
+      }
+
+      const payload = (await response.json()) as { login?: unknown }
+      return typeof payload.login === 'string' ? payload.login : undefined
+    } catch {
+      return undefined
+    }
+  }
+
   async function handleGitHub() {
     setError(null)
     setIsLoading(true)
     try {
       const result = await signInWithPopup(auth, githubProvider)
-      const additionalInfo = getAdditionalUserInfo(result)
-      const githubUsername = additionalInfo?.username ?? undefined
+      const githubUsername = await resolveGitHubUsername(result)
       onAuthenticate?.(githubUsername)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'GitHub sign-in failed.')

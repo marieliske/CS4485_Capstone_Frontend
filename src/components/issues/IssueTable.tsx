@@ -5,9 +5,10 @@ import type { Issue } from '../../types/issue'
 interface IssueTableProps {
   issues: Issue[]
   onSelect: (issue: Issue) => void
+  onClose?: (issueId: string) => void
 }
 
-export function IssueTable({ issues, onSelect }: IssueTableProps) {
+export function IssueTable({ issues, onSelect, onClose }: IssueTableProps) {
   const getStatusVariant = (status: Issue['status']) => {
     if (status === 'closed') {
       return 'success'
@@ -49,6 +50,16 @@ export function IssueTable({ issues, onSelect }: IssueTableProps) {
             const variant = issue.priority === 'high' ? 'danger' : issue.priority === 'medium' ? 'warning' : 'info'
             return <Badge variant={variant}>{issue.priority.toUpperCase()}</Badge>
           },
+        },
+        {
+          key: 'repoPath',
+          label: 'Repo',
+          render: (issue) => issue.repoPath ?? 'unknown-repo',
+        },
+        {
+          key: 'updatedAt',
+          label: 'Last Updated',
+          render: (issue) => new Date(issue.scanCreatedAt ?? issue.updatedAt).toLocaleString(),
         },
         {
           key: 'status',

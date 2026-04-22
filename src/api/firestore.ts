@@ -5,10 +5,34 @@ import {
   getDocs,
   orderBy,
   query,
+  updateDoc,
   type DocumentData,
 } from 'firebase/firestore'
 import { db } from '../firebase'
+import { measure } from '../utils/perf'
 import type { ScanRecord } from './scans'
+
+// ---------------------------------------------------------------------------
+// TTL cache
+// ---------------------------------------------------------------------------
+
+const CACHE_TTL = 60_000
+
+interface CacheEntry<T> { data: T; fetchedAt: number }
+const cache = new Map<string, CacheEntry<unknown>>()
+
+function getCached<T>(key: string): T | null {
+  const entry = cache.get(key) as CacheEntry<T> | undefined
+  if (!entry) return null
+  if (Date.now() - entry.fetchedAt > CACHE_TTL) { cache.delete(key); return null }
+  return entry.data
+}
+
+function setCached<T>(key: string, data: T): void {
+  cache.set(key, { data, fetchedAt: Date.now() })
+}
+
+export function clearCache(): void { cache.clear() }
 
 // ---------------------------------------------------------------------------
 // GitHub username filter — set at sign-in, used to filter repos
@@ -18,6 +42,7 @@ let _githubUsername: string | null = null
 
 export function setGithubUsernameFilter(username: string | null) {
   _githubUsername = username
+  clearCache()
 }
 
 export function getGithubUsernameFilter(): string | null {
@@ -55,15 +80,19 @@ function toRepoRecord(id: string, data: DocumentData): RepoRecord {
 }
 
 function belongsToUser(repo: RepoRecord): boolean {
-  if (!_githubUsername) return true
+  if (!_githubUsername) return false
   const owner = repo.full_name.split('/')[0]
   return owner.toLowerCase() === _githubUsername.toLowerCase()
 }
 
 export async function getRepos(): Promise<RepoRecord[]> {
-  const snapshot = await getDocs(collection(db, 'repos'))
-  const all = snapshot.docs.map((d) => toRepoRecord(d.id, d.data()))
-  return all.filter(belongsToUser)
+  const key = `repos:${_githubUsername ?? ''}`
+  const cached = getCached<RepoRecord[]>(key)
+  if (cached) return cached
+  const snapshot = await measure('getRepos', () => getDocs(collection(db, 'repos')))
+  const result = snapshot.docs.map((d) => toRepoRecord(d.id, d.data())).filter(belongsToUser)
+  setCached(key, result)
+  return result
 }
 
 export async function getRepoById(repoId: string): Promise<RepoRecord | null> {
@@ -97,30 +126,35 @@ function toScanRecord(scanId: string, data: DocumentData, repoId: string): ScanR
 }
 
 export async function getAllScanRuns(): Promise<ScanRecord[]> {
+  const key = `allScanRuns:${_githubUsername ?? ''}`
+  const cached = getCached<ScanRecord[]>(key)
+  if (cached) return cached
+
   const repos = await getRepos()
-  const allScans: ScanRecord[] = []
+  const perRepo = await Promise.all(
+    repos.map(async (repo) => {
+      const scansRef = collection(db, 'repos', repo.id, 'scan_runs')
+      const scansSnap = await measure(`getAllScanRuns:${repo.id}`, () =>
+        getDocs(query(scansRef, orderBy('scanned_at', 'desc')))
+      )
+      return scansSnap.docs.map((scanDoc) => toScanRecord(scanDoc.id, scanDoc.data(), repo.id))
+    })
+  )
 
-  for (const repo of repos) {
-    const scansRef = collection(db, 'repos', repo.id, 'scan_runs')
-    const scansSnap = await getDocs(query(scansRef, orderBy('scanned_at', 'desc')))
-    for (const scanDoc of scansSnap.docs) {
-      allScans.push(toScanRecord(scanDoc.id, scanDoc.data(), repo.id))
-    }
-  }
-
-  allScans.sort((a, b) => {
-    const aTime = Date.parse(a.created_at ?? '')
-    const bTime = Date.parse(b.created_at ?? '')
-    return bTime - aTime
-  })
-
-  return allScans
+  const result = perRepo.flat().sort((a, b) => Date.parse(b.created_at ?? '') - Date.parse(a.created_at ?? ''))
+  setCached(key, result)
+  return result
 }
 
 export async function getScanRunsForRepo(repoId: string): Promise<ScanRecord[]> {
+  const key = `scanRuns:${repoId}`
+  const cached = getCached<ScanRecord[]>(key)
+  if (cached) return cached
   const scansRef = collection(db, 'repos', repoId, 'scan_runs')
   const scansSnap = await getDocs(query(scansRef, orderBy('scanned_at', 'desc')))
-  return scansSnap.docs.map((d) => toScanRecord(d.id, d.data(), repoId))
+  const result = scansSnap.docs.map((d) => toScanRecord(d.id, d.data(), repoId))
+  setCached(key, result)
+  return result
 }
 
 export async function getScanRunById(scanId: string): Promise<ScanRecord | null> {
@@ -140,15 +174,30 @@ export async function getScanRunById(scanId: string): Promise<ScanRecord | null>
 // ---------------------------------------------------------------------------
 
 export async function getIssuesForScan(scanId: string): Promise<DocumentData[]> {
+  const key = `issues:${scanId}`
+  const cached = getCached<DocumentData[]>(key)
+  if (cached) return cached
   const repos = await getRepos()
   for (const repo of repos) {
     const issuesRef = collection(db, 'repos', repo.id, 'scan_runs', scanId, 'flags')
-    const snap = await getDocs(issuesRef)
+    const snap = await measure(`getIssuesForScan:${repo.id}`, () => getDocs(issuesRef))
     if (!snap.empty) {
-      return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      const result = snap.docs.map((d) => ({ id: d.id, _repoId: repo.id, ...d.data() }))
+      setCached(key, result)
+      return result
     }
   }
   return []
+}
+
+export async function closeIssue(repoId: string, scanId: string, issueId: string): Promise<void> {
+  const flagRef = doc(db, 'repos', repoId, 'scan_runs', scanId, 'flags', issueId)
+  await updateDoc(flagRef, { status: 'closed' })
+  const key = `issues:${scanId}`
+  const cached = getCached<DocumentData[]>(key)
+  if (cached) {
+    setCached(key, cached.map((issue) => issue['id'] === issueId ? { ...issue, status: 'closed' } : issue))
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -167,7 +216,7 @@ export async function getAISuggestionsForScan(scanId: string): Promise<AISuggest
   const repos = await getRepos()
   for (const repo of repos) {
     const ref = collection(db, 'repos', repo.id, 'scan_runs', scanId, 'ai_suggestions')
-    const snap = await getDocs(ref)
+    const snap = await measure(`getAISuggestionsForScan:${repo.id}`, () => getDocs(ref))
     if (!snap.empty) {
       return snap.docs.map((d) => {
         const data = d.data()
