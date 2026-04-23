@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { firebaseConfigured, firebaseMissingEnvKeys } from './firebase'
 import { DashboardPage } from './pages/DashboardPage'
 import { ProjectsPage } from './pages/ProjectsPage'
@@ -8,6 +8,7 @@ import { ConfigurationPage } from './pages/ConfigurationPage'
 import { AuthProvider, useAuth } from './auth/AuthContext'
 import { AuthPage } from './pages/AuthPage'
 import { UserSettingsWireframePage } from './pages/UserSettingsWireframePage'
+import { setGithubUsernameFilter } from './api/firestore'
 
 import './App.css'
 
@@ -64,8 +65,8 @@ function AppShell() {
     setActivePage('scanHistory')
   }
 
-  const openIssues = (scanId?: string) => {
-    setFocusedScanId(scanId ?? null)
+  const openIssues = () => {
+    setFocusedScanId(null)
     setActivePage('issues')
   }
 
@@ -154,7 +155,6 @@ function AppShell() {
     pageTitle = 'Issues'
     pageContent = (
       <IssuesPage
-        initialScanId={focusedScanId}
         onOpenHistory={() => openHistory(focusedScanId ?? undefined)}
       />
     )
@@ -165,7 +165,7 @@ function AppShell() {
     pageContent = (
       <ScanHistoryPage
         initialSelectedScanId={focusedScanId}
-        onOpenIssuesForScan={(scanId: string) => openIssues(scanId)}
+        onOpenIssuesForScan={() => openIssues()}
       />
     )
   }
@@ -356,6 +356,17 @@ function AppShell() {
 function App() {
   const { user, loading } = useAuth()
 
+  useEffect(() => {
+    if (!user) {
+      setGithubUsernameFilter(null)
+      return
+    }
+
+    const storedUsername = localStorage.getItem('docrot_github_username')
+    const normalizedUsername = storedUsername?.trim() || null
+    setGithubUsernameFilter(normalizedUsername)
+  }, [user])
+
   if (!firebaseConfigured) {
     return (
       <div
@@ -400,6 +411,7 @@ function App() {
       onAuthenticate={(username) => {
         if (username) {
           localStorage.setItem('docrot_github_username', username)
+          setGithubUsernameFilter(username)
         }
       }}
     />

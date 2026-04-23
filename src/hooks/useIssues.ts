@@ -64,6 +64,7 @@ export function useIssues(scanId?: string | null) {
         }
 
         const selectedScan = scanId ? scans.find((scan) => scan.id === scanId) : scans[0]
+        setResolvedScanId(selectedScan?.id ?? null)
         const openLiveIssues = liveIssues.filter((issue) => issue.status === 'open')
         const highCount = openLiveIssues.filter((issue) => issue.priority === 'high').length
         const mediumCount = openLiveIssues.filter((issue) => issue.priority === 'medium').length
@@ -84,6 +85,7 @@ export function useIssues(scanId?: string | null) {
           setError(null)
         } else {
           setIssues([])
+          setResolvedScanId(null)
           setScanReport(buildSummary([]))
           setError('No backend issues were returned yet.')
         }
@@ -93,6 +95,7 @@ export function useIssues(scanId?: string | null) {
         }
 
         setIssues([])
+        setResolvedScanId(null)
         setScanReport(buildSummary([]))
         setError(err instanceof Error ? err.message : 'Unable to load backend issues.')
       } finally {

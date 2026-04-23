@@ -6,18 +6,17 @@ import { Card } from '../components/shared/Card'
 import { useIssues } from '../hooks/useIssues'
 
 interface IssuesPageProps {
-  initialScanId?: string | null
   onOpenHistory?: () => void
   searchQuery?: string
 }
 
 const PAGE_SIZE = 25
 
-export function IssuesPage({ initialScanId, onOpenHistory, searchQuery }: IssuesPageProps) {
-  const { issues, scanReport, loading, error, openIssues, closeIssue } = useIssues(initialScanId)
+export function IssuesPage({ onOpenHistory, searchQuery }: IssuesPageProps) {
+  const { issues, scanReport, loading, error, openIssues, closeIssue } = useIssues()
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('open')
-  const [sortBy, setSortBy] = useState<'priority' | 'date' | 'repo'>('priority')
+  const [sortBy, setSortBy] = useState<'priority' | 'date' | 'repo'>('date')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null)
   const [page, setPage] = useState(0)
@@ -57,16 +56,28 @@ export function IssuesPage({ initialScanId, onOpenHistory, searchQuery }: Issues
     })
 
     filtered.sort((a, b) => {
+      const aTime = Date.parse(a.scanCreatedAt ?? a.updatedAt)
+      const bTime = Date.parse(b.scanCreatedAt ?? b.updatedAt)
+      const dateComparison = aTime - bTime
+      const severityComparison = priorityRank[a.priority] - priorityRank[b.priority]
+      const repoComparison = (a.repoPath ?? '').localeCompare(b.repoPath ?? '')
       let comparison = 0
 
       if (sortBy === 'priority') {
-        comparison = priorityRank[a.priority] - priorityRank[b.priority]
+        comparison = severityComparison
+        if (comparison === 0) {
+          comparison = dateComparison
+        }
       } else if (sortBy === 'repo') {
-        comparison = (a.repoPath ?? '').localeCompare(b.repoPath ?? '')
+        comparison = repoComparison
+        if (comparison === 0) {
+          comparison = dateComparison
+        }
       } else {
-        const aTime = Date.parse(a.scanCreatedAt ?? a.updatedAt)
-        const bTime = Date.parse(b.scanCreatedAt ?? b.updatedAt)
-        comparison = aTime - bTime
+        comparison = dateComparison
+        if (comparison === 0) {
+          comparison = severityComparison
+        }
       }
 
       if (comparison === 0) {
