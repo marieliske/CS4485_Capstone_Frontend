@@ -1,6 +1,6 @@
 import { startTransition, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { onAuthStateChanged, signOut, type User } from 'firebase/auth'
-import { auth, firebaseConfigured, firebaseMissingEnvKeys } from './firebase'
+import { auth, firebaseConfigured, firebaseInvalidEnvIssues, firebaseMissingEnvKeys } from './firebase'
 import { setGithubUsernameFilter } from './api/firestore'
 import { DashboardPage } from './pages/DashboardPage'
 import { ProjectsPage } from './pages/ProjectsPage'
@@ -189,6 +189,8 @@ function App() {
   }
 
   if (!firebaseConfigured) {
+    const hasMissingKeys = firebaseMissingEnvKeys.length > 0
+
     return (
       <div
         className="page-placeholder"
@@ -212,15 +214,30 @@ function App() {
             padding: '1.25rem 1.4rem',
           }}
         >
-          <h2 style={{ marginBottom: '0.65rem' }}>Firebase environment variables are missing</h2>
-          <p style={{ color: '#8ea2c1', marginBottom: '0.75rem' }}>
-            Add the missing keys to <code>.env.local</code>, then restart the Vite dev server.
-          </p>
-          <pre style={{ margin: 0, color: '#dce9ff', whiteSpace: 'pre-wrap' }}>
+          <h2 style={{ marginBottom: '0.65rem' }}>
+            {hasMissingKeys ? 'Firebase environment variables are missing' : 'Firebase environment variables are invalid'}
+          </h2>
+          {hasMissingKeys ? (
+            <>
+              <p style={{ color: '#8ea2c1', marginBottom: '0.75rem' }}>
+                Add the missing keys to <code>.env.local</code>, then restart the Vite dev server.
+              </p>
+              <pre style={{ margin: 0, color: '#dce9ff', whiteSpace: 'pre-wrap' }}>
 {firebaseMissingEnvKeys
   .map((key) => `VITE_FIREBASE_${key.replace(/[A-Z]/g, (m) => `_${m}`).toUpperCase().replace(/^_/, '')}=...`)
   .join('\n')}
-          </pre>
+              </pre>
+            </>
+          ) : (
+            <>
+              <p style={{ color: '#8ea2c1', marginBottom: '0.75rem' }}>
+                Update invalid keys in <code>.env.local</code> and rebuild/redeploy. Firebase OAuth redirects rely on a valid auth domain.
+              </p>
+              <pre style={{ margin: 0, color: '#dce9ff', whiteSpace: 'pre-wrap' }}>
+{firebaseInvalidEnvIssues.join('\n')}
+              </pre>
+            </>
+          )}
         </div>
       </div>
     )
