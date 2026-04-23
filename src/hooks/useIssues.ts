@@ -94,10 +94,15 @@ export function useIssues(scanId?: string | null) {
           return
         }
 
+        const message = err instanceof Error ? err.message : 'Unable to load backend issues.'
         setIssues([])
         setResolvedScanId(null)
         setScanReport(buildSummary([]))
-        setError(err instanceof Error ? err.message : 'Unable to load backend issues.')
+        if (message.toLowerCase().includes('missing or insufficient permissions')) {
+          setError('Issues are temporarily unavailable for this session.')
+        } else {
+          setError(message)
+        }
       } finally {
         if (!cancelled) {
           setLoading(false)

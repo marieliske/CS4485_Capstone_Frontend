@@ -39,6 +39,7 @@
 
 .app-brand {
   align-items: center;
+  
   display: flex;
   gap: 10px;
   padding: 6px 8px;
