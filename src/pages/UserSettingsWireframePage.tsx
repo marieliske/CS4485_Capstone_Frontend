@@ -50,128 +50,235 @@ export function UserSettingsWireframePage() {
   }
 
   return (
-    <section className="wf-page wf-settings-page">
-      <section className="wf-settings-profile">
-        <div className="wf-settings-profile-left">
-          <div className="wf-settings-avatar-wrap">
+    <div>
+      {/* Page head */}
+      <div className="page-head">
+        <div>
+          <div className="kicker">account</div>
+          <h1>User Settings</h1>
+          <p className="sub">Manage your profile, security, and account preferences.</p>
+        </div>
+      </div>
+
+      {/* Profile card */}
+      <div className="card" style={{ marginBottom: 20, overflow: 'hidden' }}>
+        <div className="card-head">
+          <h3>Profile</h3>
+          {!editingProfile ? (
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => setEditingProfile(true)}
+            >
+              Edit Profile
+            </button>
+          ) : null}
+        </div>
+        <div
+          style={{
+            padding: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 16,
+            flexWrap: 'wrap',
+          }}
+        >
+          <div className="sidebar-user-avatar" style={{ width: 52, height: 52, fontSize: 18 }}>
             {user?.photoURL ? (
-              <img src={user.photoURL} alt={user?.displayName ?? ''} className="wf-settings-profile-avatar" width="64" height="64" />
+              <img src={user.photoURL} alt={user?.displayName ?? ''} />
             ) : (
-              <span className="wf-settings-profile-avatar" aria-hidden="true">
-                {initials}
-              </span>
+              initials
             )}
           </div>
 
-          <div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             {editingProfile ? (
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <input
                   type="text"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   placeholder="Display name"
-                  style={{ padding: '0.4rem 0.6rem', borderRadius: '6px', border: '1px solid #2a3a5c', background: '#0e1726', color: '#f3f7ff', fontSize: '0.9rem' }}
+                  className="input"
+                  style={{ flex: 1, minWidth: 180 }}
                 />
-                <button type="button" className="wf-settings-edit-btn" onClick={handleSaveProfile}>Save</button>
-                <button type="button" className="wf-settings-edit-btn" onClick={() => setEditingProfile(false)}>Cancel</button>
+                <button type="button" className="btn btn-accent btn-sm" onClick={handleSaveProfile}>
+                  Save
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setEditingProfile(false)}
+                >
+                  Cancel
+                </button>
               </div>
             ) : (
               <>
-                <h3>{user?.displayName ?? user?.email ?? 'User'}</h3>
-                <p>{user?.email ?? ''}</p>
+                <strong style={{ display: 'block', fontSize: 15, color: 'var(--ink)' }}>
+                  {user?.displayName ?? user?.email ?? 'User'}
+                </strong>
+                <small style={{ color: 'var(--ink-3)', fontSize: 13 }}>{user?.email ?? ''}</small>
               </>
             )}
-            {profileMsg ? <p style={{ color: '#19b587', fontSize: '0.8rem', marginTop: '0.3rem' }}>{profileMsg}</p> : null}
-            <span className="wf-settings-role-pill">
-              {user?.providerData[0]?.providerId === 'github.com' ? 'GITHUB AUTH' : 'EMAIL AUTH'}
-            </span>
+            {profileMsg ? (
+              <p
+                style={{
+                  color: profileMsg.includes('updated') ? 'var(--success)' : 'var(--critical)',
+                  fontSize: 12,
+                  marginTop: 6,
+                }}
+              >
+                {profileMsg}
+              </p>
+            ) : null}
+          </div>
+
+          <span className="pill pill-accent">
+            {user?.providerData[0]?.providerId === 'github.com' ? 'GitHub Auth' : 'Email Auth'}
+          </span>
+        </div>
+      </div>
+
+      {/* Grid: security + account info */}
+      <div className="grid-2" style={{ marginBottom: 20 }}>
+        {/* Account Security */}
+        <div className="card" style={{ overflow: 'hidden' }}>
+          <div className="card-head">
+            <h3>Account Security</h3>
+          </div>
+          <div className="kv-list">
+            {isEmailUser ? (
+              <div className="kv-row" style={{ display: 'block', padding: '16px 18px' }}>
+                <strong style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>
+                  Change Password
+                </strong>
+                {changingPassword ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+                    <input
+                      type="password"
+                      placeholder="Current password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      className="input"
+                    />
+                    <input
+                      type="password"
+                      placeholder="New password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="input"
+                    />
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        type="button"
+                        className="btn btn-accent btn-sm"
+                        onClick={handleChangePassword}
+                      >
+                        Update
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => {
+                          setChangingPassword(false)
+                          setPasswordMsg(null)
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    {passwordMsg ? (
+                      <p
+                        style={{
+                          color: passwordMsg.includes('updated')
+                            ? 'var(--success)'
+                            : 'var(--critical)',
+                          fontSize: 12,
+                        }}
+                      >
+                        {passwordMsg}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <p style={{ fontSize: 12, color: 'var(--ink-3)' }}>
+                      Update your account password
+                    </p>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-ghost"
+                      onClick={() => setChangingPassword(true)}
+                    >
+                      Change
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="kv-row">
+                <div>
+                  <strong style={{ display: 'block', fontSize: 13 }}>
+                    GitHub Authentication
+                  </strong>
+                  <small style={{ color: 'var(--ink-3)', fontSize: 12 }}>
+                    Your account is secured via GitHub OAuth
+                  </small>
+                </div>
+                <span className="pill pill-success">Active</span>
+                <span />
+              </div>
+            )}
           </div>
         </div>
 
-        <button type="button" className="wf-settings-edit-btn" onClick={() => setEditingProfile(true)}>
-          Edit Profile
-        </button>
-      </section>
-
-      <div className="wf-settings-grid">
-        <section className="wf-settings-panel">
-          <h4>Account Security</h4>
-          <div className="wf-settings-security-list">
-            {isEmailUser ? (
-              <div className="wf-settings-security-row">
-                <div>
-                  <strong>Change Password</strong>
-                  {changingPassword ? (
-                    <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                      <input
-                        type="password"
-                        placeholder="Current password"
-                        value={currentPassword}
-                        onChange={(e) => setCurrentPassword(e.target.value)}
-                        style={{ padding: '0.4rem 0.6rem', borderRadius: '6px', border: '1px solid #2a3a5c', background: '#0e1726', color: '#f3f7ff', fontSize: '0.85rem' }}
-                      />
-                      <input
-                        type="password"
-                        placeholder="New password"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        style={{ padding: '0.4rem 0.6rem', borderRadius: '6px', border: '1px solid #2a3a5c', background: '#0e1726', color: '#f3f7ff', fontSize: '0.85rem' }}
-                      />
-                      <div style={{ display: 'flex', gap: '0.4rem' }}>
-                        <button type="button" className="wf-settings-edit-btn" onClick={handleChangePassword}>Update</button>
-                        <button type="button" className="wf-settings-edit-btn" onClick={() => { setChangingPassword(false); setPasswordMsg(null) }}>Cancel</button>
-                      </div>
-                      {passwordMsg ? <p style={{ color: passwordMsg.includes('updated') ? '#19b587' : '#e04c6f', fontSize: '0.8rem' }}>{passwordMsg}</p> : null}
-                    </div>
-                  ) : (
-                    <p>Update your account password</p>
-                  )}
-                </div>
-                {!changingPassword ? (
-                  <button type="button" onClick={() => setChangingPassword(true)} style={{ background: 'none', border: 'none', color: '#8ea2c1', cursor: 'pointer', fontSize: '1.2rem' }}>›</button>
-                ) : null}
-              </div>
-            ) : (
-              <div className="wf-settings-security-row">
-                <div>
-                  <strong>GitHub Authentication</strong>
-                  <p>Your account is secured via GitHub OAuth</p>
-                </div>
-                <span className="wf-settings-active-badge">ACTIVE</span>
-              </div>
-            )}
+        {/* Account Info */}
+        <div className="card" style={{ overflow: 'hidden' }}>
+          <div className="card-head">
+            <h3>Account Info</h3>
           </div>
-        </section>
-
-        <section className="wf-settings-panel">
-          <h4>Account Info</h4>
-          <div className="wf-settings-toggle-list">
-            <div className="wf-settings-toggle-row">
-              <strong>User ID</strong>
-              <span style={{ color: '#8ea2c1', fontSize: '0.8rem' }}>{user?.uid ?? 'N/A'}</span>
-            </div>
-            <div className="wf-settings-toggle-row">
-              <strong>Sign-in Provider</strong>
-              <span style={{ color: '#8ea2c1', fontSize: '0.8rem' }}>{user?.providerData[0]?.providerId ?? 'unknown'}</span>
-            </div>
-            <div className="wf-settings-toggle-row">
-              <strong>Account Created</strong>
-              <span style={{ color: '#8ea2c1', fontSize: '0.8rem' }}>{user?.metadata.creationTime ?? 'N/A'}</span>
-            </div>
-            <div className="wf-settings-toggle-row">
-              <strong>Last Sign-in</strong>
-              <span style={{ color: '#8ea2c1', fontSize: '0.8rem' }}>{user?.metadata.lastSignInTime ?? 'N/A'}</span>
-            </div>
+          <div className="kv-list">
+            {[
+              { label: 'User ID', value: user?.uid ?? 'N/A', mono: true },
+              {
+                label: 'Sign-in Provider',
+                value: user?.providerData[0]?.providerId ?? 'unknown',
+                mono: true,
+              },
+              {
+                label: 'Account Created',
+                value: user?.metadata.creationTime ?? 'N/A',
+                mono: false,
+              },
+              {
+                label: 'Last Sign-in',
+                value: user?.metadata.lastSignInTime ?? 'N/A',
+                mono: false,
+              },
+            ].map(({ label, value, mono }) => (
+              <div key={label} className="kv-row">
+                <span className="k">{label}</span>
+                <span className={`v${mono ? ' mono' : ''}`}>{value}</span>
+                <span />
+              </div>
+            ))}
           </div>
-        </section>
+        </div>
       </div>
 
-      <footer className="wf-settings-footer">
+      {/* Footer */}
+      <div className="auth-footer">
         <button type="button">Documentation</button>
         <button type="button">Help Center</button>
         <button type="button">Contact Support</button>
-      </footer>
-    </section>
+      </div>
+    </div>
   )
 }
