@@ -15,12 +15,35 @@ export const firebaseMissingEnvKeys = Object.entries(firebaseEnv)
   .filter(([, value]) => !value)
   .map(([key]) => key)
 
+function looksLikeFirebaseApiKey(value: string): boolean {
+  return /^AIza[0-9A-Za-z_-]{20,}$/.test(value)
+}
+
+function sanitizeAuthDomain(authDomain: string | undefined, projectId: string | undefined): string {
+  const domain = (authDomain ?? '').trim()
+  if (!domain && projectId) {
+    return `${projectId}.firebaseapp.com`
+  }
+
+  if (domain && !looksLikeFirebaseApiKey(domain) && domain.includes('.')) {
+    return domain
+  }
+
+  if (projectId) {
+    return `${projectId}.firebaseapp.com`
+  }
+
+  return domain
+}
+
 export const firebaseConfigured = firebaseMissingEnvKeys.length === 0
+
+const resolvedAuthDomain = sanitizeAuthDomain(firebaseEnv.authDomain, firebaseEnv.projectId)
 
 const firebaseConfig = {
   // Keep initialization resilient so UI can render an actionable setup message.
   apiKey: firebaseEnv.apiKey || 'missing-api-key',
-  authDomain: firebaseEnv.authDomain || 'missing-auth-domain',
+  authDomain: resolvedAuthDomain || 'missing-auth-domain',
   projectId: firebaseEnv.projectId || 'missing-project-id',
   storageBucket: firebaseEnv.storageBucket || 'missing-storage-bucket',
   messagingSenderId: firebaseEnv.messagingSenderId || 'missing-sender-id',
