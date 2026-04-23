@@ -182,9 +182,7 @@ function toProjectRow(repoName: string, scans: ScanRecord[]): ProjectRow {
   }
 }
 
-const PAGE_SIZE = 25
-
-export function ProjectsPage({ onInspectProject, searchQuery }: ProjectsPageProps) {
+export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
   const [projectRows, setProjectRows] = useState<ProjectRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -196,7 +194,7 @@ export function ProjectsPage({ onInspectProject, searchQuery }: ProjectsPageProp
   const [expandedIssues, setExpandedIssues] = useState<Record<string, ScanIssueRecord[]>>({})
   const [expandedLoadingKey, setExpandedLoadingKey] = useState<string | null>(null)
 
-  useEffect(() => { setPage(0) }, [deferredQuery])
+  const deferredQuery = useDeferredValue(query)
 
   useEffect(() => {
     let cancelled = false
@@ -261,9 +259,6 @@ export function ProjectsPage({ onInspectProject, searchQuery }: ProjectsPageProp
       ),
     )
   }, [deferredQuery, projectRows])
-
-  const totalPages = Math.ceil(filteredRows.length / PAGE_SIZE)
-  const pagedRows = filteredRows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   const latestUpdated = projectRows
     .map((project) => project.lastUpdated)
@@ -344,7 +339,7 @@ export function ProjectsPage({ onInspectProject, searchQuery }: ProjectsPageProp
   return (
     <section className="projects-page">
       {showCreateForm ? (
-        <section className="configuration-section" style={{ display: 'grid', gap: '0.9rem' }}>
+        <section className="configuration-section" style={{ display: 'grid', gap: '0.9rem', marginBottom: '1rem' }}>
           <div className="configuration-section-head">
             <h3>Create New Project</h3>
             <button type="button" className="config-link-btn" onClick={() => setShowCreateForm(false)}>
@@ -390,140 +385,120 @@ export function ProjectsPage({ onInspectProject, searchQuery }: ProjectsPageProp
           aria-label="Search projects"
           className="scan-history-search-input"
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search project or repository path"
-          value={activeQuery}
+          placeholder="Search projects"
+          value={query}
         />
         <span className="projects-filter-btn">Showing {filteredRows.length} projects</span>
       </div>
 
-      <section className="projects-table-shell">
+      <section className="projects-list-shell">
         {loading ? (
           <div className="page-placeholder">Loading projects from backend scan data…</div>
         ) : filteredRows.length === 0 ? (
           <div className="page-placeholder">{error ?? 'No projects match your search.'}</div>
         ) : (
-          <table className="projects-table">
-            <thead>
-              <tr>
-                <th>Project Name</th>
-                <th>Repository</th>
-                <th>Latest Status</th>
-                <th>Latest Scan</th>
-                <th>Rot Score</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRows.map((project) => {
-                const isExpanded = expandedProjectKey === project.repository
-                const issues = expandedIssues[project.repository] ?? []
+          <div className="projects-card-list">
+            {filteredRows.map((project) => {
+              const isExpanded = expandedProjectKey === project.repository
+              const issues = expandedIssues[project.repository] ?? []
 
-                return (
-                  <>
-                    <tr key={project.repository}>
-                      <td className="project-name-cell">{project.name}</td>
-                      <td className="project-repo-cell">{project.repository}</td>
-                      <td>
+              return (
+                <article key={project.repository} className="project-card">
+                  <div className="project-card-top">
+                    <div className="project-card-main">
+                      <div className="project-card-title-row">
+                        <h3 className="project-card-title">{project.name}</h3>
                         <span className={`project-status ${project.statusTone}`}>
                           <span className="status-dot" aria-hidden="true" />
                           {project.latestStatus}
                         </span>
-                      </td>
-                      <td>
-                        <div className="project-scan-cell">
-                          <strong>{formatScanRunLabel(project.lastUpdated)}</strong>
-                          <small>
-                            {project.scanCount} scan{project.scanCount === 1 ? '' : 's'} • {project.latestMismatchCount} mismatch
-                            {project.latestMismatchCount === 1 ? '' : 'es'}
-                          </small>
-                          <small className="scan-id-meta">ID: {shortenScanId(project.latestScanId)}</small>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="project-gauge-cell">
-                          <RotGauge score={project.score} compact />
-                        </div>
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                          <button
-                            type="button"
-                            className="btn btn-ghost"
-                            onClick={() => handleToggleExpand(project)}
-                          >
-                            {isExpanded ? 'Hide Details' : 'Inspect'}
-                          </button>
+                      </div>
 
-                          {project.latestScanId ? (
-                            <button
-                              type="button"
-                              className="btn btn-ghost"
-                              onClick={() => onInspectProject?.(project.latestScanId)}
-                            >
-                              Full View
-                            </button>
-                          ) : null}
-                        </div>
-                      </td>
-                    </tr>
+                      <p className="project-card-repo">{project.repository}</p>
 
-                    {isExpanded ? (
-                      <tr key={`${project.repository}-details`} className="project-details-row">
-                        <td colSpan={6}>
-                          <div className="project-details-panel">
-                            <div className="project-details-grid">
-                              <div className="project-details-card">
-                                <p className="detail-label">Project Summary</p>
-                                <p className="detail-copy">
-                                  <strong>{project.name}</strong> has {project.scanCount} total scan
-                                  {project.scanCount === 1 ? '' : 's'}, a latest rot score of{' '}
-                                  <strong>{project.score}%</strong>, and{' '}
-                                  <strong>{project.latestMismatchCount}</strong> detected mismatch
-                                  {project.latestMismatchCount === 1 ? '' : 'es'}.
-                                </p>
-                              </div>
+                      <div className="project-card-meta">
+                        <span><strong>{formatScanRunLabel(project.lastUpdated)}</strong></span>
+                        <span>{project.scanCount} scan{project.scanCount === 1 ? '' : 's'}</span>
+                        <span>
+                          {project.latestMismatchCount} mismatch{project.latestMismatchCount === 1 ? '' : 'es'}
+                        </span>
+                        <span>ID: {shortenScanId(project.latestScanId)}</span>
+                      </div>
+                    </div>
 
-                              <div className="project-details-card">
-                                <p className="detail-label">Latest Run</p>
-                                <p className="detail-copy">{formatScanRunLabel(project.lastUpdated)}</p>
-                                <p className="detail-copy" style={{ opacity: 0.75 }}>
-                                  Scan ref: {shortenScanId(project.latestScanId)}
-                                </p>
-                              </div>
-                            </div>
+                    <div className="project-card-gauge">
+                      <RotGauge score={project.score} compact />
+                    </div>
+                  </div>
 
-                            <div className="project-details-card">
-                              <p className="detail-label">Latest Scan Issues</p>
+                  <div className="project-card-actions">
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={() => handleToggleExpand(project)}
+                    >
+                      {isExpanded ? 'Hide' : 'Inspect'}
+                    </button>
 
-                              {!project.latestScanId ? (
-                                <p className="detail-copy">
-                                  This project does not have a latest scan yet.
-                                </p>
-                              ) : expandedLoadingKey === project.repository ? (
-                                <p className="detail-copy">Loading issues…</p>
-                              ) : issues.length === 0 ? (
-                                <p className="detail-copy">
-                                  No linked issues were returned for the latest scan.
-                                </p>
-                              ) : (
-                                <ul className="project-issues-list">
-                                  {issues.slice(0, 5).map((issue, index) => (
-                                    <li key={`${project.repository}-issue-${index}`}>
-                                      {summarizeIssue(issue, index)}
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
+                    {project.latestScanId ? (
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={() => onInspectProject?.(project.latestScanId)}
+                      >
+                        Full View
+                      </button>
                     ) : null}
-                  </>
-                )
-              })}
-            </tbody>
-          </table>
+                  </div>
+
+                  {isExpanded ? (
+                    <div className="project-card-expanded">
+                      <div className="project-details-grid">
+                        <div className="project-details-card">
+                          <p className="detail-label">Project Summary</p>
+                          <p className="detail-copy">
+                            <strong>{project.name}</strong> has {project.scanCount} total scan
+                            {project.scanCount === 1 ? '' : 's'}, a latest rot score of{' '}
+                            <strong>{project.score}%</strong>, and{' '}
+                            <strong>{project.latestMismatchCount}</strong> detected mismatch
+                            {project.latestMismatchCount === 1 ? '' : 'es'}.
+                          </p>
+                        </div>
+
+                        <div className="project-details-card">
+                          <p className="detail-label">Latest Run</p>
+                          <p className="detail-copy">{formatScanRunLabel(project.lastUpdated)}</p>
+                          <p className="detail-copy" style={{ opacity: 0.75 }}>
+                            Scan ref: {shortenScanId(project.latestScanId)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="project-details-card">
+                        <p className="detail-label">Issues</p>
+
+                        {!project.latestScanId ? (
+                          <p className="detail-copy">This project does not have a latest scan yet.</p>
+                        ) : expandedLoadingKey === project.repository ? (
+                          <p className="detail-copy">Loading issues…</p>
+                        ) : issues.length === 0 ? (
+                          <p className="detail-copy">No linked issues were returned for the latest scan.</p>
+                        ) : (
+                          <ul className="project-issues-list">
+                            {issues.slice(0, 5).map((issue, index) => (
+                              <li key={`${project.repository}-issue-${index}`}>
+                                {summarizeIssue(issue, index)}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
+                </article>
+              )
+            })}
+          </div>
         )}
 
         <footer className="projects-table-footer">
