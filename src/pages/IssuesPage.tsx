@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { useDeferredValue, useMemo, useState } from 'react'
 import { IssueDetailPanel } from '../components/issues/IssueDetailPanel'
 import { IssueFilters } from '../components/issues/IssueFilters'
 import { IssueTable } from '../components/issues/IssueTable'
@@ -7,7 +7,6 @@ import { useIssues } from '../hooks/useIssues'
 
 interface IssuesPageProps {
   onOpenHistory?: () => void
-  searchQuery?: string
 }
 
 const PAGE_SIZE = 25
@@ -18,23 +17,13 @@ export function IssuesPage({ onOpenHistory, searchQuery }: IssuesPageProps) {
   const [status, setStatus] = useState('open')
   const [sortBy, setSortBy] = useState<'priority' | 'date' | 'repo'>('date')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
-  const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null)
-  const [page, setPage] = useState(0)
 
-  const activeQuery = searchQuery !== undefined && searchQuery !== '' ? searchQuery : query
-  const deferredQuery = useDeferredValue(activeQuery)
-
-  useEffect(() => { setPage(0) }, [deferredQuery, status])
+  const deferredQuery = useDeferredValue(query)
 
   const filteredIssues = useMemo(() => {
     const normalizedQuery = deferredQuery.trim().toLowerCase()
-    const priorityRank: Record<'high' | 'medium' | 'low', number> = {
-      high: 3,
-      medium: 2,
-      low: 1,
-    }
 
-    const filtered = issues.filter((issue) => {
+    return issues.filter((issue) => {
       const matchesStatus = status === 'all' || issue.status === status
       if (!matchesStatus) {
         return false
@@ -51,7 +40,6 @@ export function IssuesPage({ onOpenHistory, searchQuery }: IssuesPageProps) {
         issue.docPath,
         issue.docSection,
         issue.symbol,
-        issue.repoPath ?? '',
       ].some((value) => value.toLowerCase().includes(normalizedQuery))
     })
 
@@ -109,10 +97,7 @@ export function IssuesPage({ onOpenHistory, searchQuery }: IssuesPageProps) {
           <div className="issues-context-meta">
             <span>Repo: {scanReport.repoPath}</span>
             <span>Commit: {scanReport.commitHash}</span>
-            <span> 
-              Latest run:{' '}
-              {scanReport.scannedAt ? new Date(scanReport.scannedAt).toLocaleString() : 'Not available'}
-            </span>
+            <span>Scanned: {new Date(scanReport.scannedAt).toLocaleString()}</span>
           </div>
         </div>
         <div className="issues-header-actions">
@@ -140,16 +125,7 @@ export function IssuesPage({ onOpenHistory, searchQuery }: IssuesPageProps) {
       </div>
 
       <Card className="issues-filter-card">
-        <IssueFilters
-          query={query}
-          status={status}
-          sortBy={sortBy}
-          sortDirection={sortDirection}
-          onQueryChange={setQuery}
-          onStatusChange={setStatus}
-          onSortByChange={setSortBy}
-          onSortDirectionChange={setSortDirection}
-        />
+        <IssueFilters query={query} status={status} onQueryChange={setQuery} onStatusChange={setStatus} />
         <div className="issues-filter-meta">
           <span>
             Showing {filteredIssues.length} of {issues.length} issues
@@ -165,16 +141,7 @@ export function IssuesPage({ onOpenHistory, searchQuery }: IssuesPageProps) {
           ) : filteredIssues.length === 0 ? (
             <div className="page-placeholder">No issues match your current filters.</div>
           ) : (
-            <>
-              <IssueTable issues={pagedIssues} onSelect={(issue) => setSelectedIssueId(issue.id)} onClose={closeIssue} />
-              {totalPages > 1 && (
-                <footer className="table-pagination">
-                  <button type="button" className="btn btn-ghost" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</button>
-                  <span>Page {page + 1} of {totalPages}</span>
-                  <button type="button" className="btn btn-ghost" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>Next</button>
-                </footer>
-              )}
-            </>
+            <IssueTable issues={filteredIssues} onSelect={(issue) => setSelectedIssueId(issue.id)} />
           )}
         </section>
 

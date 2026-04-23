@@ -1,11 +1,16 @@
 import { useState } from 'react'
-import { signInWithPopup, getAdditionalUserInfo, GithubAuthProvider } from 'firebase/auth'
+import {
+  signInWithPopup,
+  getAdditionalUserInfo,
+} from 'firebase/auth'
 import { auth, githubProvider } from '../firebase'
 
 export type AuthMode = 'sign-in' | 'sign-up'
 
 interface AuthPageProps {
+  mode: AuthMode
   onAuthenticate?: (githubUsername?: string) => void
+  onModeChange?: (mode: AuthMode) => void
 }
 
 function BrandMark() {
@@ -52,49 +57,20 @@ function FeatureIcon({ type }: { type: 'scan' | 'alert' | 'drilldown' }) {
 
 export function AuthPage({ onAuthenticate }: AuthPageProps) {
   const [error, setError] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const [loading, setLoading] = useState(false)
 
-  async function resolveGitHubUsername(result: Awaited<ReturnType<typeof signInWithPopup>>): Promise<string | undefined> {
-    const additionalInfo = getAdditionalUserInfo(result)
-    if (additionalInfo?.username) {
-      return additionalInfo.username
-    }
-
-    const credential = GithubAuthProvider.credentialFromResult(result)
-    const accessToken = credential?.accessToken
-    if (!accessToken) {
-      return undefined
-    }
-
-    try {
-      const response = await fetch('https://api.github.com/user', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      })
-
-      if (!response.ok) {
-        return undefined
-      }
-
-      const payload = (await response.json()) as { login?: unknown }
-      return typeof payload.login === 'string' ? payload.login : undefined
-    } catch {
-      return undefined
-    }
-  }
-
-  async function handleGitHub() {
+  async function handleGitHubAuth() {
     setError(null)
-    setIsLoading(true)
+    setLoading(true)
     try {
       const result = await signInWithPopup(auth, githubProvider)
-      const githubUsername = await resolveGitHubUsername(result)
+      const additionalInfo = getAdditionalUserInfo(result)
+      const githubUsername = additionalInfo?.username ?? undefined
       onAuthenticate?.(githubUsername)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'GitHub sign-in failed.')
+      setError(err instanceof Error ? err.message : 'GitHub authentication failed.')
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
@@ -177,16 +153,16 @@ export function AuthPage({ onAuthenticate }: AuthPageProps) {
               </p>
             </div>
 
-            <button type="button" className="auth-provider-btn" onClick={handleGitHub} disabled={isLoading}>
+            <button type="button" className="auth-provider-btn" onClick={handleGitHubAuth} disabled={loading}>
               <span aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 .7a11.3 11.3 0 0 0-3.58 22c.57.1.78-.25.78-.55v-2.15c-3.19.7-3.87-1.36-3.87-1.36-.52-1.32-1.27-1.66-1.27-1.66-1.03-.7.08-.69.08-.69 1.15.08 1.74 1.17 1.74 1.17 1 .17 2.13.73 2.66 1.96.89 1.52 2.34 1.08 2.91.82.09-.72.35-1.21.63-1.49-2.55-.29-5.22-1.28-5.22-5.7 0-1.26.45-2.28 1.17-3.08-.12-.28-.51-1.44.11-2.99 0 0 .96-.31 3.14 1.17a10.8 10.8 0 0 1 5.72 0c2.18-1.48 3.13-1.17 3.13-1.17.63 1.55.24 2.71.12 2.99.73.8 1.17 1.82 1.17 3.08 0 4.43-2.68 5.4-5.24 5.69.42.36.78 1.05.78 2.14v3.17c0 .31.2.66.79.55A11.3 11.3 0 0 0 12 .7Z" />
                 </svg>
               </span>
-              {isLoading ? 'Signing in...' : 'Continue with GitHub'}
+              {loading ? 'Signing in...' : 'Continue with GitHub'}
             </button>
 
-            {error ? <p className="auth-error" style={{ marginTop: '1rem', textAlign: 'center' }}>{error}</p> : null}
+            {error ? <p className="auth-error-text" style={{ color: '#e04c6f', fontSize: '0.85rem', textAlign: 'center', margin: '0.5rem 0' }}>{error}</p> : null}
           </div>
 
           <div className="auth-footer">

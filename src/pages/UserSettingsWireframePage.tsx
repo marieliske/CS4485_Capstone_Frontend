@@ -54,13 +54,9 @@ export function UserSettingsWireframePage() {
       <section className="wf-settings-profile">
         <div className="wf-settings-profile-left">
           <div className="wf-settings-avatar-wrap">
-            {user?.photoURL ? (
-              <img src={user.photoURL} alt={user?.displayName ?? ''} className="wf-settings-profile-avatar" width="64" height="64" />
-            ) : (
-              <span className="wf-settings-profile-avatar" aria-hidden="true">
-                {initials}
-              </span>
-            )}
+            <span className="wf-settings-profile-avatar" aria-hidden="true">
+              {initials}
+            </span>
           </div>
 
           <div>

@@ -5,10 +5,9 @@ import type { Issue } from '../../types/issue'
 interface IssueTableProps {
   issues: Issue[]
   onSelect: (issue: Issue) => void
-  onClose?: (issueId: string) => void
 }
 
-export function IssueTable({ issues, onSelect, onClose }: IssueTableProps) {
+export function IssueTable({ issues, onSelect }: IssueTableProps) {
   const getStatusVariant = (status: Issue['status']) => {
     if (status === 'closed') {
       return 'success'
@@ -48,16 +47,6 @@ export function IssueTable({ issues, onSelect, onClose }: IssueTableProps) {
           },
         },
         {
-          key: 'repoPath',
-          label: 'Repo',
-          render: (issue) => issue.repoPath ?? 'unknown-repo',
-        },
-        {
-          key: 'updatedAt',
-          label: 'Last Updated',
-          render: (issue) => new Date(issue.scanCreatedAt ?? issue.updatedAt).toLocaleString(),
-        },
-        {
           key: 'status',
           label: 'Status',
           render: (issue) => <Badge variant={getStatusVariant(issue.status)}>{issue.status}</Badge>,
@@ -66,16 +55,9 @@ export function IssueTable({ issues, onSelect, onClose }: IssueTableProps) {
           key: 'id',
           label: 'Actions',
           render: (issue) => (
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button className="btn btn-ghost" onClick={() => onSelect(issue)} type="button">
-                View
-              </button>
-              {issue.status !== 'closed' && onClose ? (
-                <button className="btn btn-ghost" onClick={() => onClose(issue.id)} type="button">
-                  Close
-                </button>
-              ) : null}
-            </div>
+            <button className="btn btn-ghost" onClick={() => onSelect(issue)} type="button">
+              View
+            </button>
           ),
         },
       ]}

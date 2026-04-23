@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getFingerprintSummary, getScanIssues, getScans, type ScanRecord } from '../api/scans'
 import { useScanEvents } from '../hooks/useScanEvents'
 
-type StatCardTone = 'positive' | 'negative' | 'neutral'
+type StatCardTone = 'positive' | 'negative'
 type ActivityTone = 'success' | 'warning' | 'info' | 'danger'
 
 interface DashboardActivity {
@@ -74,20 +74,6 @@ function formatRelativeTime(value?: string): string {
 
   const days = Math.floor(hours / 24)
   return `${days}d ago`
-}
-
-function formatScanPseudoName(scan: ScanRecord, fallbackIndex: number): string {
-  const parsed = scan.created_at ? new Date(scan.created_at) : null
-  if (parsed && !Number.isNaN(parsed.getTime())) {
-    return `Scan ${parsed.toLocaleString([], {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    })}`
-  }
-
-  return `Scan ${fallbackIndex + 1}`
 }
 
 function StatIcon({ type }: { type: 'folder' | 'search' | 'warning' | 'chart' }) {
@@ -189,16 +175,11 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
 
   const { isConnected: streamConnected } = useScanEvents(handleScanAdded, lastSeenId, initialized)
 
-  const healthProgress = Math.max(0, Math.min(100, Math.round(healthIndex ?? 0)))
-  const totalProjectCount = new Set(
-    scans.map((scan) => scan.repo_path).filter((path) => typeof path === 'string' && path.length > 0),
-  ).size
-
   const statCards = useMemo(
     () => [
       {
         title: 'Total Projects',
-        value: `${totalProjectCount}`,
+        value: `${new Set(scans.map((scan) => scan.repo_path).filter((path) => typeof path === 'string' && path.length > 0)).size}`,
         delta: 'live',
         tone: 'positive' as StatCardTone,
         icon: 'folder' as const,
@@ -219,18 +200,13 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
       },
       {
         title: 'Latest Scan Score',
-        value: `${healthProgress}%`,
+        value: `${Math.max(0, Math.min(100, Math.round(healthIndex ?? 0)))}%`,
         delta: 'live',
-        tone:
-          healthProgress <= 20
-            ? ('positive' as StatCardTone)
-            : healthProgress <= 50
-              ? ('neutral' as StatCardTone)
-              : ('negative' as StatCardTone),
+        tone: ((healthIndex ?? 0) <= 20 ? 'positive' : (healthIndex ?? 0) <= 50 ? 'neutral' : 'negative') as StatCardTone,
         icon: 'chart' as const,
       },
     ],
-    [healthProgress, openIssues, scans.length, totalProjectCount],
+    [healthIndex, openIssues, scans],
   )
 
   const activityRows = useMemo<DashboardActivity[]>(() => {
@@ -252,7 +228,7 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
 
       return {
         scanId: scan.id,
-        title: `Scan Completed: ${formatScanPseudoName(scan, index)}`,
+        title: `Scan Completed: ${scan.id || `Scan ${index + 1}`}`,
         subtitle:
           mismatches !== null
             ? `Detected ${mismatches} potential mismatch${mismatches === 1 ? '' : 'es'} in this run.`
@@ -262,6 +238,11 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
       }
     })
   }, [scans])
+
+  const healthProgress = Math.max(0, Math.min(100, Math.round(healthIndex ?? 0)))
+  const totalProjectCount = new Set(
+    scans.map((scan) => scan.repo_path).filter((path) => typeof path === 'string' && path.length > 0),
+  ).size
 
   const statActions: Record<string, (() => void) | undefined> = {
     'Total Projects': onOpenProjects,
@@ -342,7 +323,7 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
           <h3>Quick Actions</h3>
           <button type="button" className="action-primary-btn" onClick={() => onOpenHistory?.()}>
             <span>New Scan</span>
-            <span aria-hidden="true">→</span>
+            <span aria-hidden="true">-&gt;</span>
           </button>
 
           <div className="action-secondary-grid">
@@ -353,6 +334,23 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
               Scan History
             </button>
           </div>
+
+          <section className="health-card">
+            <header>
+              <h4>Health Index</h4>
+              <strong>{healthProgress}%</strong>
+            </header>
+            <div
+              className="health-track"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={healthProgress}
+            >
+              <span style={{ width: `${healthProgress}%` }} />
+            </div>
+            <p>Based on the latest backend scan and fingerprint summary data.</p>
+          </section>
         </aside>
       </div>
     </section>
