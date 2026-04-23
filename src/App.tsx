@@ -297,136 +297,125 @@ function AppShell() {
 }, [activePage])
 
   return (
-    <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-      <aside className="app-sidebar">
-        <div className="app-brand">
-          <div className="app-brand-left">
-            <span className="app-brand-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                <path d="M14 2v6h6" />
-                <circle cx="14" cy="15.5" r="3.5" />
-                <path d="M14 13.5v2l1.5 1" />
-              </svg>
-            </span>
-
-            <div className="app-brand-copy">
-              <h1>DocRot</h1>
-              <p>Detector Admin</p>
-            </div>
+    <div className="shell" data-sidebar={sidebarCollapsed ? 'collapsed' : undefined} data-theme="dark">
+      <aside className="sidebar">
+        <div className="sidebar-brand">
+          <div className="sidebar-brand-mark" aria-hidden="true">D</div>
+          <div className="sidebar-brand-text">
+            <h1>DocRot</h1>
+            <p>Detector</p>
           </div>
-
           <button
             type="button"
-            className="sidebar-toggle-btn"
+            className="sidebar-collapse-btn"
             aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             onClick={() => setSidebarCollapsed((prev) => !prev)}
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               {sidebarCollapsed ? <path d="M9 6l6 6-6 6" /> : <path d="M15 6l-6 6 6 6" />}
             </svg>
           </button>
         </div>
 
-        <nav className="app-nav">
+        <div className="sidebar-section">
+          <div className="sidebar-section-label">Navigate</div>
           {navItems.map((item) => (
             <button
               key={item.key}
               aria-current={activePage === item.key ? 'page' : undefined}
-              className={activePage === item.key ? 'app-nav-link active' : 'app-nav-link'}
+              className={activePage === item.key ? 'nav-item active' : 'nav-item'}
               onClick={() => navigateToPage(item.key)}
               type="button"
               title={sidebarCollapsed ? item.label : undefined}
             >
               {item.icon}
-              <span className="app-nav-text">{item.label}</span>
+              <span className="nav-item-label">{item.label}</span>
             </button>
           ))}
-        </nav>
+        </div>
 
-        <div className="app-sidebar-footer">
+        <div className="sidebar-footer">
           <button
             type="button"
-            className={activePage === 'wf-user-settings' ? 'app-nav-link active' : 'app-nav-link'}
+            className={activePage === 'wf-user-settings' ? 'nav-item active' : 'nav-item'}
             onClick={() => navigateToPage('wf-user-settings')}
-            style={{ width: '100%', marginBottom: '0.75rem' }}
             title={sidebarCollapsed ? 'User Settings' : undefined}
           >
             <NavIcon>
               <circle cx="12" cy="8" r="3" />
               <path d="M6 19c1.4-3 3.5-4.5 6-4.5s4.6 1.5 6 4.5" />
             </NavIcon>
-            <span className="app-nav-text">User Settings</span>
+            <span className="nav-item-label">User Settings</span>
           </button>
 
-          <div className="user-row">
-            {user?.photoURL ? (
-              <img
-                src={user.photoURL}
-                alt={user.displayName ?? user.email ?? ''}
-                className="avatar nav-avatar"
-                width="32"
-                height="32"
-              />
-            ) : (
-              <span className="avatar" aria-hidden="true" />
-            )}
-
-            <div className="user-copy">
-              <p>{user?.displayName ?? user?.email ?? 'User'}</p>
+          <div className="sidebar-user" style={{ marginTop: '4px' }}>
+            <div className="sidebar-user-avatar">
+              {user?.photoURL ? (
+                <img src={user.photoURL} alt={user.displayName ?? user.email ?? ''} />
+              ) : null}
+            </div>
+            <div className="sidebar-user-text">
+              <strong>{user?.displayName ?? user?.email ?? 'User'}</strong>
               <small>{user?.email ?? ''}</small>
             </div>
           </div>
 
           <button
             type="button"
-            className="logout-btn"
+            className="sidebar-logout-btn"
             onClick={() => {
               localStorage.removeItem('docrot_github_username')
               logout()
             }}
             title={sidebarCollapsed ? 'Sign out' : undefined}
           >
-            <span className="logout-text">Sign out</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ width: 14, height: 14, flexShrink: 0 }}>
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            <span className="sidebar-logout-btn-text">Sign out</span>
           </button>
         </div>
       </aside>
 
-      <main className="app-main">
-        <header className="app-topbar">
-          <div className="app-topbar-title-wrap">
-            <h2>{pageTitle}</h2>
+      <main className="main">
+        <header className="topbar">
+          <div className="topbar-crumbs">
+            <span>docrot</span>
+            <span className="sep">/</span>
+            <span className="current">{pageTitle}</span>
           </div>
 
-          <div className="app-topbar-tools">
-            <div className="search-shell">
-              <SearchIcon />
-              <input
-                type="text"
-                placeholder={`Search ${pageTitle.toLowerCase()}`}
-                value={topbarQuery}
-                onChange={(event) => setTopbarQuery(event.target.value)}
-                aria-label={`Search ${pageTitle}`}
-              />
-            </div>
+          <div className="topbar-spacer" />
 
-            <button type="button" className="notification-btn" aria-label="Notifications">
-              <BellIcon />
+          <div className="topbar-search">
+            <SearchIcon />
+            <input
+              type="text"
+              placeholder={`Search ${pageTitle.toLowerCase()}…`}
+              value={topbarQuery}
+              onChange={(event) => setTopbarQuery(event.target.value)}
+              aria-label={`Search ${pageTitle}`}
+            />
+          </div>
+
+          <button type="button" className="icon-btn" aria-label="Notifications">
+            <BellIcon />
+          </button>
+
+          {topbarPrimaryAction ? (
+            <button
+              type="button"
+              className="btn btn-accent"
+              onClick={topbarPrimaryAction.onClick}
+            >
+              {topbarPrimaryAction.label}
             </button>
-
-            {topbarPrimaryAction ? (
-              <button
-                type="button"
-                className={topbarPrimaryAction.className}
-                onClick={topbarPrimaryAction.onClick}
-              >
-                {topbarPrimaryAction.label}
-              </button>
-            ) : null}
-          </div>
+          ) : null}
         </header>
 
-        <div className="page-container">{pageContent}</div>
+        <div className="page-viewport">{pageContent}</div>
       </main>
     </div>
   )

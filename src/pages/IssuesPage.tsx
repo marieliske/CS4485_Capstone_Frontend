@@ -1,8 +1,6 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { IssueDetailPanel } from '../components/issues/IssueDetailPanel'
-import { IssueFilters } from '../components/issues/IssueFilters'
 import { IssueTable } from '../components/issues/IssueTable'
-import { Card } from '../components/shared/Card'
 import { useIssues } from '../hooks/useIssues'
 
 interface IssuesPageProps {
@@ -12,6 +10,19 @@ interface IssuesPageProps {
 }
 
 const PAGE_SIZE = 25
+
+const SORT_OPTIONS = [
+  { value: 'priority', label: 'Priority' },
+  { value: 'date', label: 'Date' },
+  { value: 'repo', label: 'Repo' },
+] as const
+
+const STATUS_CHIPS: Array<{ key: string; label: string }> = [
+  { key: 'open', label: 'Open' },
+  { key: 'in-progress', label: 'In progress' },
+  { key: 'all', label: 'All' },
+  { key: 'closed', label: 'Closed' },
+]
 
 export function IssuesPage({ initialScanId, onOpenHistory, searchQuery }: IssuesPageProps) {
   const { issues, scanReport, loading, error, openIssues, closeIssue } = useIssues(initialScanId)
@@ -29,22 +40,12 @@ export function IssuesPage({ initialScanId, onOpenHistory, searchQuery }: Issues
 
   const filteredIssues = useMemo(() => {
     const normalizedQuery = deferredQuery.trim().toLowerCase()
-    const priorityRank: Record<'high' | 'medium' | 'low', number> = {
-      high: 3,
-      medium: 2,
-      low: 1,
-    }
+    const priorityRank: Record<'high' | 'medium' | 'low', number> = { high: 3, medium: 2, low: 1 }
 
     const filtered = issues.filter((issue) => {
       const matchesStatus = status === 'all' || issue.status === status
-      if (!matchesStatus) {
-        return false
-      }
-
-      if (!normalizedQuery) {
-        return true
-      }
-
+      if (!matchesStatus) return false
+      if (!normalizedQuery) return true
       return [
         issue.title,
         issue.codeElement,
@@ -58,21 +59,14 @@ export function IssuesPage({ initialScanId, onOpenHistory, searchQuery }: Issues
 
     filtered.sort((a, b) => {
       let comparison = 0
-
       if (sortBy === 'priority') {
         comparison = priorityRank[a.priority] - priorityRank[b.priority]
       } else if (sortBy === 'repo') {
         comparison = (a.repoPath ?? '').localeCompare(b.repoPath ?? '')
       } else {
-        const aTime = Date.parse(a.scanCreatedAt ?? a.updatedAt)
-        const bTime = Date.parse(b.scanCreatedAt ?? b.updatedAt)
-        comparison = aTime - bTime
+        comparison = Date.parse(a.scanCreatedAt ?? a.updatedAt) - Date.parse(b.scanCreatedAt ?? b.updatedAt)
       }
-
-      if (comparison === 0) {
-        comparison = a.title.localeCompare(b.title)
-      }
-
+      if (comparison === 0) comparison = a.title.localeCompare(b.title)
       return sortDirection === 'asc' ? comparison : -comparison
     })
 
@@ -81,94 +75,169 @@ export function IssuesPage({ initialScanId, onOpenHistory, searchQuery }: Issues
 
   const totalPages = Math.ceil(filteredIssues.length / PAGE_SIZE)
   const pagedIssues = filteredIssues.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
-
   const selectedIssue = filteredIssues.find((issue) => issue.id === selectedIssueId) ?? filteredIssues[0] ?? null
 
-  const summaryCards = [
-    { value: `${scanReport.highCount}`, label: 'High Priority', tone: 'critical', icon: '!' },
-    { value: `${scanReport.mediumCount}`, label: 'Medium Priority', tone: 'warning', icon: '!' },
-    { value: `${openIssues.length}`, label: 'Open Findings', tone: 'info', icon: 'i' },
-  ] as const
-
   return (
-    <section className="issues-page">
-      <header className="issues-header">
+    <div>
+      {/* Page head */}
+      <div className="page-head">
         <div>
-          <p>Live mismatch review for the latest available scan results.</p>
-          <div className="issues-context-meta">
-            <span>Repo: {scanReport.repoPath}</span>
-            <span>Commit: {scanReport.commitHash}</span>
-            <span> 
-              Latest run:{' '}
-              {scanReport.scannedAt ? new Date(scanReport.scannedAt).toLocaleString() : 'Not available'}
-            </span>
+          <div className="kicker">
+            {openIssues.length} open · {scanReport.highCount} critical · {scanReport.mediumCount} medium
           </div>
+          <h1>Issues</h1>
+          <p className="sub">
+            Every place docs drifted from code.
+            {scanReport.repoPath ? ` Showing results for ${scanReport.repoPath}.` : ''}
+          </p>
         </div>
-        <div className="issues-header-actions">
+        <div className="page-head-actions">
           {onOpenHistory ? (
-            <button type="button" className="export-btn" onClick={onOpenHistory}>
+            <button type="button" className="btn" onClick={onOpenHistory}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ width: 14, height: 14 }}>
+                <path d="M12 8v5l3 2"/><circle cx="12" cy="12" r="8"/>
+              </svg>
               View Scan History
             </button>
           ) : null}
-          <button type="button" className="scan-btn" onClick={onOpenHistory}>
-            Refresh Context
-          </button>
         </div>
-      </header>
-
-      <div className="issues-summary-grid">
-        {summaryCards.map((card) => (
-          <article key={card.label} className="issues-summary-card">
-            <span className={`summary-icon ${card.tone}`}>{card.icon}</span>
-            <div>
-              <strong>{card.value}</strong>
-              <p>{card.label}</p>
-            </div>
-          </article>
-        ))}
       </div>
 
-      <Card className="issues-filter-card">
-        <IssueFilters
-          query={query}
-          status={status}
-          sortBy={sortBy}
-          sortDirection={sortDirection}
-          onQueryChange={setQuery}
-          onStatusChange={setStatus}
-          onSortByChange={setSortBy}
-          onSortDirectionChange={setSortDirection}
-        />
-        <div className="issues-filter-meta">
-          <span>
-            Showing {filteredIssues.length} of {issues.length} issues
-          </span>
-          {error ? <span className="issues-inline-error">{error}</span> : null}
+      {/* Summary strip */}
+      <div className="issues-summary-grid">
+        <div className="issues-summary-card">
+          <div className="summary-icon critical">!</div>
+          <div>
+            <strong>{scanReport.highCount}</strong>
+            <p>High Priority</p>
+          </div>
         </div>
-      </Card>
+        <div className="issues-summary-card">
+          <div className="summary-icon warning">!</div>
+          <div>
+            <strong>{scanReport.mediumCount}</strong>
+            <p>Medium Priority</p>
+          </div>
+        </div>
+        <div className="issues-summary-card">
+          <div className="summary-icon info">i</div>
+          <div>
+            <strong>{openIssues.length}</strong>
+            <p>Open Findings</p>
+          </div>
+        </div>
+      </div>
 
+      {/* Filter bar */}
+      <div className="issues-filterbar">
+        {STATUS_CHIPS.map((chip) => (
+          <button
+            key={chip.key}
+            type="button"
+            className={`filter-chip ${status === chip.key ? 'active' : ''}`}
+            onClick={() => setStatus(chip.key)}
+          >
+            {chip.label}
+            <span className="count">
+              {chip.key === 'all'
+                ? issues.length
+                : chip.key === 'open'
+                ? openIssues.length
+                : issues.filter((i) => i.status === chip.key).length}
+            </span>
+          </button>
+        ))}
+
+        <div style={{ flex: 1 }} />
+
+        <div className="filter-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <circle cx="11" cy="11" r="5.5"/>
+            <path d="m15 15 5 5"/>
+          </svg>
+          <input
+            type="text"
+            placeholder="Search issues…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="Search issues"
+          />
+        </div>
+
+        <select
+          className="input"
+          style={{ padding: '5px 9px', fontSize: 12, borderRadius: 99 }}
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+          aria-label="Sort by"
+        >
+          {SORT_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>Sort: {opt.label}</option>
+          ))}
+        </select>
+
+        <button
+          type="button"
+          className="btn btn-sm btn-ghost"
+          onClick={() => setSortDirection((d) => d === 'asc' ? 'desc' : 'asc')}
+          title={sortDirection === 'asc' ? 'Ascending' : 'Descending'}
+        >
+          {sortDirection === 'asc' ? '↑' : '↓'}
+        </button>
+      </div>
+
+      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--ink-3)', marginBottom: 10, display: 'flex', justifyContent: 'space-between' }}>
+        <span>Showing {filteredIssues.length} of {issues.length} issues</span>
+        {error ? <span style={{ color: 'var(--critical)' }}>{error}</span> : null}
+      </div>
+
+      {/* Split workspace */}
       <div className="issues-workspace">
-        <section className="issues-table-shell issues-table-panel">
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {loading ? (
             <div className="page-placeholder">Loading issues from the backend…</div>
           ) : filteredIssues.length === 0 ? (
-            <div className="page-placeholder">No issues match your current filters.</div>
+            <div className="empty">
+              <h4>Nothing here.</h4>
+              <p>Switch filters above or wait for the next scan to run.</p>
+            </div>
           ) : (
             <>
-              <IssueTable issues={pagedIssues} onSelect={(issue) => setSelectedIssueId(issue.id)} onClose={closeIssue} />
-              {totalPages > 1 && (
-                <footer className="table-pagination">
-                  <button type="button" className="btn btn-ghost" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</button>
-                  <span>Page {page + 1} of {totalPages}</span>
-                  <button type="button" className="btn btn-ghost" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>Next</button>
-                </footer>
-              )}
+              <IssueTable
+                issues={pagedIssues}
+                selectedId={selectedIssue?.id ?? null}
+                onSelect={(issue) => setSelectedIssueId(issue.id)}
+                onClose={closeIssue}
+              />
+              {totalPages > 1 ? (
+                <div className="table-pagination">
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost"
+                    disabled={page === 0}
+                    onClick={() => setPage((p) => p - 1)}
+                  >
+                    Previous
+                  </button>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>
+                    Page {page + 1} of {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost"
+                    disabled={page >= totalPages - 1}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
+                    Next
+                  </button>
+                </div>
+              ) : null}
             </>
           )}
-        </section>
+        </div>
 
         <IssueDetailPanel issue={selectedIssue} />
       </div>
-    </section>
+    </div>
   )
 }
