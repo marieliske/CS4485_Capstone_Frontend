@@ -139,6 +139,11 @@ function AppShell() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [topbarQuery, setTopbarQuery] = useState('')
 
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', 'dark')
+    return () => { document.documentElement.removeAttribute('data-theme') }
+  }, [])
+
   const navigateToPage = (page: PageKey) => {
     setActivePage(page)
   }
@@ -297,7 +302,7 @@ function AppShell() {
 }, [activePage])
 
   return (
-    <div className="shell" data-sidebar={sidebarCollapsed ? 'collapsed' : undefined} data-theme="dark">
+    <div className="shell" data-sidebar={sidebarCollapsed ? 'collapsed' : undefined}>
       <aside className="sidebar">
         <div className="sidebar-brand">
           <div className="sidebar-brand-mark" aria-hidden="true">D</div>
