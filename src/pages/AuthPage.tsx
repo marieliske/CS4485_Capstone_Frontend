@@ -22,11 +22,6 @@ export function AuthPage({ onAuthenticate }: AuthPageProps) {
   const [tickIdx, setTickIdx] = useState(0)
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', 'dark')
-    return () => { document.documentElement.removeAttribute('data-theme') }
-  }, [])
-
-  useEffect(() => {
     const t = setInterval(() => setTickIdx((i) => (i + 1) % RECENT_SCANS.length), 2200)
     return () => clearInterval(t)
   }, [])

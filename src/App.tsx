@@ -9,6 +9,8 @@ import { AuthProvider, useAuth } from './auth/AuthContext'
 import { AuthPage } from './pages/AuthPage'
 import { UserSettingsWireframePage } from './pages/UserSettingsWireframePage'
 import { setGithubUsernameFilter } from './api/firestore'
+import { SettingsProvider } from './context/SettingsContext'
+import { TweaksPanel } from './components/TweaksPanel'
 
 import './App.css'
 
@@ -55,11 +57,7 @@ function AppShell() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [topbarQuery, setTopbarQuery] = useState('')
   const [focusedScanId, setFocusedScanId] = useState<string | null>(null)
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', 'dark')
-    return () => { document.documentElement.removeAttribute('data-theme') }
-  }, [])
+  const [tweaksOpen, setTweaksOpen] = useState(false)
 
   const navigateToPage = (page: PageKey) => {
     setActivePage(page)
@@ -226,7 +224,15 @@ function AppShell() {
     <div className="shell" data-sidebar={sidebarCollapsed ? 'collapsed' : undefined}>
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <div className="sidebar-brand-mark" aria-hidden="true">D</div>
+          <div
+            className="sidebar-brand-mark"
+            aria-hidden={!sidebarCollapsed}
+            onClick={sidebarCollapsed ? () => setSidebarCollapsed(false) : undefined}
+            title={sidebarCollapsed ? 'Expand sidebar' : undefined}
+            style={sidebarCollapsed ? { cursor: 'pointer' } : undefined}
+          >
+            D
+          </div>
           <div className="sidebar-brand-text">
             <h1>DocRot</h1>
             <p>Detector</p>
@@ -234,11 +240,11 @@ function AppShell() {
           <button
             type="button"
             className="sidebar-collapse-btn"
-            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            onClick={() => setSidebarCollapsed((prev) => !prev)}
+            aria-label="Collapse sidebar"
+            onClick={() => setSidebarCollapsed(true)}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              {sidebarCollapsed ? <path d="M9 6l6 6-6 6" /> : <path d="M15 6l-6 6 6 6" />}
+              <path d="M15 6l-6 6 6 6" />
             </svg>
           </button>
         </div>
@@ -330,6 +336,18 @@ function AppShell() {
             <BellIcon />
           </button>
 
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Visual settings"
+            onClick={() => setTweaksOpen((v) => !v)}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M21 6H9M5 6H3"/><path d="M21 12h-8M9 12H3"/><path d="M21 18H15M11 18H3"/>
+              <circle cx="7" cy="6" r="2"/><circle cx="11" cy="12" r="2"/><circle cx="13" cy="18" r="2"/>
+            </svg>
+          </button>
+
           {topbarPrimaryAction ? (
             <button
               type="button"
@@ -343,6 +361,8 @@ function AppShell() {
 
         <div className="page-viewport">{pageContent}</div>
       </main>
+
+      <TweaksPanel open={tweaksOpen} onClose={() => setTweaksOpen(false)} />
     </div>
   )
 }
@@ -432,8 +452,10 @@ function App() {
 
 export default function Root() {
   return (
-    <AuthProvider>
-      <App />
-    </AuthProvider>
+    <SettingsProvider>
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    </SettingsProvider>
   )
 }

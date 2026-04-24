@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getFingerprintSummary, getScanIssues, getScans, type ScanRecord } from '../api/scans'
 import { useScanEvents } from '../hooks/useScanEvents'
+import { useSettings } from '../context/SettingsContext'
 
 type StatCardTone = 'positive' | 'negative' | 'neutral'
 type ActivityTone = 'success' | 'warning' | 'info' | 'danger'
@@ -125,6 +126,69 @@ function StatIcon({ type }: { type: 'folder' | 'search' | 'warning' | 'chart' })
       <path d="M15 19v-7" />
       <path d="M20 19v-4" />
     </svg>
+  )
+}
+
+function RotViz({ pct, history, rotClass }: { pct: number; history: number[]; rotClass: string }) {
+  const { settings } = useSettings()
+  const r = 70
+  const circumference = 2 * Math.PI * r
+  const offset = circumference - (pct / 100) * circumference
+
+  if (settings.viz === 'colony') {
+    const cells = Array.from({ length: 100 }, (_, i) => {
+      const active = Math.round(pct)
+      const hot = Math.max(0, active - 70)
+      if (i < hot) return 'hot'
+      if (i < active) return 'on'
+      return ''
+    })
+    return (
+      <div className="viz-colony">
+        {cells.map((cls, i) => (
+          <div key={i} className={`cell${cls ? ` ${cls}` : ''}`} />
+        ))}
+      </div>
+    )
+  }
+
+  if (settings.viz === 'sparkline') {
+    const pts = history.length > 1 ? history : [pct]
+    const w = 200
+    const h = 56
+    const xs = pts.map((_, i) => (i / Math.max(pts.length - 1, 1)) * w)
+    const ys = pts.map((v) => h - (v / 100) * h)
+    const linePath = xs.map((x, i) => `${i === 0 ? 'M' : 'L'}${x},${ys[i]}`).join(' ')
+    const fillPath = `${linePath} L${w},${h} L0,${h} Z`
+    const scoreColor = pct >= 65 ? 'var(--critical)' : pct >= 35 ? 'var(--warning)' : 'var(--success)'
+    return (
+      <div className="viz-sparkline">
+        <div className="spark-value" style={{ color: scoreColor }}>{pct}<sup style={{ fontSize: '0.45em' }}>%</sup></div>
+        <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
+          <path className="spark-fill" d={fillPath} />
+          <path className="spark-line" d={linePath} />
+        </svg>
+        <div className="spark-label">Rot trend · last {pts.length} scans</div>
+      </div>
+    )
+  }
+
+  return (
+    <div className={`rot-gauge ${rotClass}`}>
+      <svg viewBox="0 0 160 160">
+        <circle className="track" cx="80" cy="80" r={r} />
+        <circle
+          className="value"
+          cx="80" cy="80" r={r}
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+        />
+      </svg>
+      <div className="rot-gauge-inner">
+        <div className="pct">{pct}<sup>%</sup></div>
+        <div className="status">{pct >= 65 ? 'critical' : pct >= 35 ? 'degrading' : 'healthy'}</div>
+      </div>
+    </div>
   )
 }
 
@@ -272,9 +336,10 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
 
   const rotPct = healthProgress
   const rotClass = rotPct >= 65 ? 'crit' : rotPct >= 35 ? 'warn' : ''
-  const r = 70
-  const circumference = 2 * Math.PI * r
-  const offset = circumference - (rotPct / 100) * circumference
+  const recentScores = useMemo(
+    () => scans.slice(0, 8).map((s) => asFiniteNumber(s.rot_score) ?? 0).reverse(),
+    [scans],
+  )
 
   const toneToFeedClass = (tone: ActivityTone) => {
     if (tone === 'success') return 'success'
@@ -329,22 +394,7 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
             </span>
           </div>
           <div className="rot-hero-body">
-            {/* Gauge */}
-            <div className={`rot-gauge ${rotClass}`}>
-              <svg viewBox="0 0 160 160">
-                <circle className="track" cx="80" cy="80" r={r} />
-                <circle
-                  className="value"
-                  cx="80" cy="80" r={r}
-                  strokeDasharray={circumference}
-                  strokeDashoffset={offset}
-                />
-              </svg>
-              <div className="rot-gauge-inner">
-                <div className="pct">{rotPct}<sup>%</sup></div>
-                <div className="status">{rotPct >= 65 ? 'critical' : rotPct >= 35 ? 'degrading' : 'healthy'}</div>
-              </div>
-            </div>
+            <RotViz pct={rotPct} history={recentScores} rotClass={rotClass} />
             <div className="rot-meta-list">
               <div className="rot-meta-row">
                 <span className="label">Open issues</span>
