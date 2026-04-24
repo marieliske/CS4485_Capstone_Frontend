@@ -49,6 +49,12 @@ function toStatusMeta(enabled: boolean): {
   return { status: 'Disabled', tone: 'disabled' }
 }
 
+function toneToPill(tone: MappingTone): string {
+  if (tone === 'active') return 'pill-success'
+  if (tone === 'pending') return 'pill-warning'
+  return ''
+}
+
 export function ConfigurationPage() {
   const [mappings, setMappings] = useState<MappingRow[]>(initialMappings)
   const [threshold, setThreshold] = useState(85)
@@ -147,52 +153,86 @@ export function ConfigurationPage() {
   }, [mappings, threshold, activePatterns])
 
   return (
-    <section className="configuration-page">
-      <header className="configuration-header">
-        <p className="configuration-title-copy">Global Configuration Settings</p>
-        <p>Manage documentation automated detection behavior triggered on git push.</p>
-      </header>
-
-      <section className="configuration-section">
-        <div className="configuration-section-head">
-          <h3>{'{ }'} Doc Mappings</h3>
-
-          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-            <button type="button" className="config-link-btn" onClick={handleAddPattern}>
-              + Add Pattern
-            </button>
-
-            <button type="button" className="apply-changes-btn" onClick={handleApplyChanges}>
-              Apply Changes
-            </button>
-          </div>
+    <div>
+      {/* Page head */}
+      <div className="page-head">
+        <div>
+          <div className="kicker">workspace settings</div>
+          <h1>Configuration</h1>
+          <p className="sub">
+            Manage documentation detection behaviour triggered on git push.
+          </p>
         </div>
+        <div className="page-head-actions">
+          <button type="button" className="btn btn-ghost" onClick={handleAddPattern}>
+            + Add Pattern
+          </button>
+          <button type="button" className="btn btn-accent" onClick={handleApplyChanges}>
+            Apply Changes
+          </button>
+        </div>
+      </div>
 
-        <div className="config-table-shell">
-          <table className="config-table">
-            <thead>
+      {/* Doc Mappings */}
+      <div className="card" style={{ marginBottom: 20, overflow: 'hidden' }}>
+        <div className="card-head">
+          <h3>{'{ }'} Doc Mappings</h3>
+          <span className="hint">{totalPatterns} patterns</span>
+        </div>
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th>Glob Pattern</th>
+              <th>Documentation File</th>
+              <th style={{ width: 110 }}>Last Synced</th>
+              <th style={{ width: 90 }}>Status</th>
+              <th style={{ width: 50 }} />
+            </tr>
+          </thead>
+          <tbody>
+            {mappings.length === 0 ? (
               <tr>
-                <th>Glob Pattern</th>
-                <th>Documentation File</th>
-                <th>Last Synced</th>
-                <th>Status</th>
-                <th>Action</th>
+                <td
+                  colSpan={5}
+                  style={{ textAlign: 'center', color: 'var(--ink-3)', fontSize: 13 }}
+                >
+                  No mapping patterns yet. Add one to begin linking code paths to documentation.
+                </td>
               </tr>
-            </thead>
-
-            <tbody>
-              {mappings.map((row) => (
-                <tr key={row.id}>
-                  <td className="config-glob-cell">{row.glob}</td>
-                  <td>{row.doc}</td>
-                  <td className="config-muted-cell">{row.synced}</td>
+            ) : (
+              mappings.map((row) => (
+                <tr key={row.id} style={{ cursor: 'default' }}>
                   <td>
-                    <span className={`config-status-pill ${row.tone}`}>● {row.status}</span>
+                    <code
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 12,
+                        color: 'var(--ink-2)',
+                        background: 'var(--bg-sunken)',
+                        padding: '2px 6px',
+                        borderRadius: 4,
+                      }}
+                    >
+                      {row.glob}
+                    </code>
+                  </td>
+                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{row.doc}</td>
+                  <td
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 11.5,
+                      color: 'var(--ink-3)',
+                    }}
+                  >
+                    {row.synced}
+                  </td>
+                  <td>
+                    <span className={`pill ${toneToPill(row.tone)}`}>● {row.status}</span>
                   </td>
                   <td style={{ position: 'relative' }}>
                     <button
                       type="button"
-                      className="config-action-btn"
+                      className="btn btn-sm btn-ghost"
                       aria-label={`Actions for ${row.glob}`}
                       onClick={() =>
                         setOpenMenuId((current) => (current === row.id ? null : row.id))
@@ -208,36 +248,35 @@ export function ConfigurationPage() {
                           right: 0,
                           top: 'calc(100% + 6px)',
                           minWidth: '152px',
-                          background: '#15243f',
-                          border: '1px solid #1f3355',
-                          borderRadius: '10px',
+                          background: 'var(--bg-elev)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--r-md)',
                           padding: '0.35rem',
                           display: 'grid',
                           gap: '0.25rem',
                           zIndex: 10,
+                          boxShadow: 'var(--shadow-md)',
                         }}
                       >
                         <button
                           type="button"
-                          className="btn"
+                          className="btn btn-sm"
                           style={{ justifyContent: 'flex-start' }}
                           onClick={() => handleEditPattern(row.id)}
                         >
                           Edit
                         </button>
-
                         <button
                           type="button"
-                          className="btn"
+                          className="btn btn-sm"
                           style={{ justifyContent: 'flex-start' }}
                           onClick={() => handleTogglePattern(row.id)}
                         >
                           {row.tone === 'disabled' ? 'Enable' : 'Disable'}
                         </button>
-
                         <button
                           type="button"
-                          className="btn"
+                          className="btn btn-sm btn-danger"
                           style={{ justifyContent: 'flex-start' }}
                           onClick={() => handleDeletePattern(row.id)}
                         >
@@ -247,106 +286,159 @@ export function ConfigurationPage() {
                     ) : null}
                   </td>
                 </tr>
-              ))}
-
-              {mappings.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="config-muted-cell">
-                    No mapping patterns yet. Add one to begin linking code paths to documentation.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <div className="configuration-grid">
-        <section className="configuration-section compact">
-          <div className="configuration-section-head">
-            <h3>Detection Sensitivity</h3>
-          </div>
-
-          <article className="config-threshold-card">
-            <div className="config-threshold-head">
-              <span>Threshold Score</span>
-              <strong>{threshold}%</strong>
-            </div>
-
-            <div
-              className="config-threshold-track"
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={threshold}
-            >
-              <span style={{ width: `${threshold}%` }} />
-            </div>
-
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={threshold}
-              onChange={(event) => setThreshold(Number(event.target.value))}
-              style={{ width: '100%', marginTop: '0.9rem' }}
-              aria-label="Detection threshold score"
-            />
-
-            <p>Minimum similarity score before documentation is flagged as "Rotten".</p>
-          </article>
-        </section>
-
-        <section className="configuration-section compact">
-          <div className="configuration-section-head">
-            <h3>Quick Summary</h3>
-          </div>
-
-          <ul className="config-alert-list">
-            <li>
-              <div>
-                <strong>{totalPatterns}</strong>
-                <p>Total mapping patterns configured</p>
-              </div>
-              <span className="config-status-pill pending">Tracked</span>
-            </li>
-
-            <li>
-              <div>
-                <strong>{activePatterns}</strong>
-                <p>Patterns currently enabled</p>
-              </div>
-              <span className="config-status-pill active">Live</span>
-            </li>
-
-            <li>
-              <div>
-                <strong>{threshold}%</strong>
-                <p>Current documentation sensitivity threshold</p>
-              </div>
-              <span className="config-status-pill active">Applied</span>
-            </li>
-          </ul>
-        </section>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
 
-      <aside className="configuration-tip">
-        <h4>Configuration Tip</h4>
-        <p>
-          For better results, try to keep your glob patterns as specific as possible. Broad
-          patterns like "**/*" may increase scan times and result in false positives if your
-          project contains a large number of assets or third-party libraries.
-        </p>
-      </aside>
-
-      <footer className="configuration-footer">
-        <span>© 2024 DocRot Detector. Documentation management simplified.</span>
-        <div>
-          <button type="button">Privacy Policy</button>
-          <button type="button">API Docs</button>
-          <button type="button">Help Center</button>
+      {/* Grid: threshold + summary */}
+      <div className="grid-2" style={{ marginBottom: 20 }}>
+        {/* Detection Sensitivity */}
+        <div className="card card-pad">
+          <div
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10.5,
+              color: 'var(--ink-3)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.1em',
+              marginBottom: 16,
+            }}
+          >
+            Detection Sensitivity
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'baseline',
+              marginBottom: 10,
+            }}
+          >
+            <span style={{ fontSize: 13, color: 'var(--ink-2)' }}>Threshold Score</span>
+            <strong
+              style={{
+                fontFamily: 'var(--font-serif)',
+                fontSize: 28,
+                letterSpacing: '-0.03em',
+              }}
+            >
+              {threshold}%
+            </strong>
+          </div>
+          <div
+            style={{
+              height: 6,
+              background: 'var(--border)',
+              borderRadius: 99,
+              overflow: 'hidden',
+              marginBottom: 12,
+            }}
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={threshold}
+          >
+            <div
+              style={{
+                height: '100%',
+                width: `${threshold}%`,
+                background:
+                  threshold > 70
+                    ? 'var(--success)'
+                    : threshold > 40
+                      ? 'var(--warning)'
+                      : 'var(--critical)',
+                borderRadius: 99,
+                transition: 'width 200ms',
+              }}
+            />
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={threshold}
+            onChange={(event) => setThreshold(Number(event.target.value))}
+            style={{ width: '100%', marginBottom: 12 }}
+            aria-label="Detection threshold score"
+          />
+          <p style={{ fontSize: 13, color: 'var(--ink-3)', lineHeight: 1.5 }}>
+            Minimum similarity score before documentation is flagged as "Rotten".
+          </p>
         </div>
-      </footer>
-    </section>
+
+        {/* Quick Summary */}
+        <div className="card" style={{ overflow: 'hidden' }}>
+          <div className="card-head">
+            <h3>Quick Summary</h3>
+          </div>
+          <div className="kv-list">
+            {[
+              {
+                k: 'Total patterns',
+                v: `${totalPatterns} configured`,
+                pill: 'pill',
+                pillLabel: 'Tracked',
+              },
+              {
+                k: 'Active patterns',
+                v: `${activePatterns} enabled`,
+                pill: 'pill pill-success',
+                pillLabel: 'Live',
+              },
+              {
+                k: 'Sensitivity',
+                v: `${threshold}% threshold`,
+                pill: 'pill pill-accent',
+                pillLabel: 'Applied',
+              },
+            ].map(({ k, v, pill, pillLabel }) => (
+              <div key={k} className="kv-row">
+                <span className="k">{k}</span>
+                <span className="v">{v}</span>
+                <span className={pill}>{pillLabel}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Tip */}
+      <div
+        className="card card-pad"
+        style={{
+          borderLeft: '3px solid var(--accent)',
+          background: 'color-mix(in oklab, var(--accent) 5%, var(--bg-elev))',
+          marginBottom: 20,
+        }}
+      >
+        <div
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10.5,
+            color: 'var(--accent-ink)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.1em',
+            marginBottom: 8,
+          }}
+        >
+          Configuration tip
+        </div>
+        <p style={{ fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.55 }}>
+          For better results, keep your glob patterns as specific as possible. Broad patterns
+          like "**/*" may increase scan times and produce false positives if your project
+          contains many assets or third-party libraries.
+        </p>
+      </div>
+
+      {/* Footer */}
+      <div className="auth-footer">
+        <button type="button">Privacy Policy</button>
+        <button type="button">API Docs</button>
+        <button type="button">Help Center</button>
+      </div>
+    </div>
   )
 }

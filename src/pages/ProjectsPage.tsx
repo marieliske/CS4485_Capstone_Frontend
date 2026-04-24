@@ -2,7 +2,6 @@ import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { getRepos, getScanRunsForRepo } from '../api/firestore'
 import { getScanIssues } from '../api/scans'
 import type { ScanIssueRecord, ScanRecord } from '../api/scans'
-import RotGauge from '../components/shared/RotGauge'
 
 interface ProjectRow {
   name: string
@@ -182,11 +181,18 @@ function toProjectRow(repoName: string, scans: ScanRecord[]): ProjectRow {
   }
 }
 
+function rotColor(score: number): string {
+  return score >= 65 ? 'var(--critical)' : score >= 35 ? 'var(--warning)' : 'var(--success)'
+}
+
+
 export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
   const [projectRows, setProjectRows] = useState<ProjectRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [sort, setSort] = useState('name')
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
   const [newRepository, setNewRepository] = useState('')
@@ -247,41 +253,47 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
     }
   }, [])
 
+  const counts = {
+    all: projectRows.length,
+    critical: projectRows.filter((p) => p.statusTone === 'critical').length,
+    degrading: projectRows.filter((p) => p.statusTone === 'degrading').length,
+    healthy: projectRows.filter((p) => p.statusTone === 'healthy').length,
+    untracked: projectRows.filter((p) => p.statusTone === 'untracked').length,
+  }
+
   const filteredRows = useMemo(() => {
     const normalizedQuery = deferredQuery.trim().toLowerCase()
-    if (!normalizedQuery) {
-      return projectRows
-    }
+    return projectRows.filter((project) => {
+      const matchesStatus = statusFilter === 'all' || project.statusTone === statusFilter
+      if (!matchesStatus) return false
+      if (!normalizedQuery) return true
+      return [project.name, project.repository, project.latestStatus].some((v) =>
+        v.toLowerCase().includes(normalizedQuery),
+      )
+    })
+  }, [deferredQuery, projectRows, statusFilter])
 
-    return projectRows.filter((project) =>
-      [project.name, project.repository, project.latestStatus].some((value) =>
-        value.toLowerCase().includes(normalizedQuery),
-      ),
-    )
-  }, [deferredQuery, projectRows])
+  const sortedRows = useMemo(() => {
+    return [...filteredRows].sort((a, b) => {
+      if (sort === 'rot-desc') return b.score - a.score
+      if (sort === 'rot-asc') return a.score - b.score
+      return a.name.localeCompare(b.name)
+    })
+  }, [filteredRows, sort])
 
-  const latestUpdated = projectRows
-    .map((project) => project.lastUpdated)
-    .filter((value) => value.length > 0)
-    .sort()
-    .at(-1)
-
-  const projectsWithAlerts = projectRows.filter((project) => project.latestMismatchCount > 0).length
   const meanRotScore =
     projectRows.length === 0
       ? 0
-      : Math.round(projectRows.reduce((sum, project) => sum + project.score, 0) / projectRows.length)
+      : Math.round(
+          projectRows
+            .filter((p) => p.statusTone !== 'untracked')
+            .reduce((sum, p) => sum + p.score, 0) /
+            Math.max(1, projectRows.filter((p) => p.statusTone !== 'untracked').length),
+        )
 
-  const statCards = [
-    { label: 'Total Projects', value: `${projectRows.length}`, warning: false },
-    { label: 'Active Alerts', value: `${projectsWithAlerts}`, warning: projectsWithAlerts > 0 },
-    { label: 'Mean Rot Score', value: `${meanRotScore}%`, warning: meanRotScore >= 60 },
-    {
-      label: 'Last Update',
-      value: latestUpdated ? formatRelativeTime(latestUpdated) : 'No scans',
-      warning: false,
-    },
-  ] as const
+  const totalIssues = projectRows.reduce((s, p) => s + p.latestMismatchCount, 0)
+
+  const mostRottenRepo = [...projectRows].sort((a, b) => b.score - a.score)[0]
 
   const handleCreateProject = () => {
     const trimmedName = newProjectName.trim()
@@ -337,176 +349,435 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
   }
 
   return (
-    <section className="projects-page">
+    <div>
+      <div className="page-head">
+        <div>
+          <div className="kicker">{projectRows.length} repositories</div>
+          <h1>Projects</h1>
+          <p className="sub">
+            Everything DocRot is watching.
+            {mostRottenRepo && mostRottenRepo.score > 0
+              ? ` Rot is concentrated in ${mostRottenRepo.name} — start there.`
+              : ''}
+          </p>
+        </div>
+        <div className="page-head-actions">
+          <button
+            type="button"
+            className="btn btn-accent"
+            onClick={() => setShowCreateForm(true)}
+          >
+            + Add repository
+          </button>
+        </div>
+      </div>
+
       {showCreateForm ? (
-        <section className="configuration-section" style={{ display: 'grid', gap: '0.9rem', marginBottom: '1rem' }}>
-          <div className="configuration-section-head">
-            <h3>Create New Project</h3>
-            <button type="button" className="config-link-btn" onClick={() => setShowCreateForm(false)}>
+        <div className="card" style={{ marginBottom: 16, overflow: 'visible' }}>
+          <div className="card-head">
+            <h3>Add Repository</h3>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => setShowCreateForm(false)}
+            >
               Cancel
             </button>
           </div>
-
-          <input
-            aria-label="Project name"
-            className="scan-history-search-input"
-            placeholder="Project name"
-            value={newProjectName}
-            onChange={(event) => setNewProjectName(event.target.value)}
-          />
-
-          <input
-            aria-label="Repository path"
-            className="scan-history-search-input"
-            placeholder="owner/repository"
-            value={newRepository}
-            onChange={(event) => setNewRepository(event.target.value)}
-          />
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <button type="button" className="create-project-btn" onClick={handleCreateProject}>
-              Save Project
-            </button>
+          <div style={{ padding: 20, display: 'grid', gap: 12 }}>
+            <input
+              aria-label="Project name"
+              className="input"
+              placeholder="Project name"
+              value={newProjectName}
+              onChange={(event) => setNewProjectName(event.target.value)}
+            />
+            <input
+              aria-label="Repository path"
+              className="input"
+              placeholder="owner/repository"
+              value={newRepository}
+              onChange={(event) => setNewRepository(event.target.value)}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button type="button" className="btn btn-accent" onClick={handleCreateProject}>
+                Save Project
+              </button>
+            </div>
           </div>
-        </section>
+        </div>
       ) : null}
 
-      <div className="projects-stats-grid">
-        {statCards.map((card) => (
-          <article key={card.label} className="projects-stat-card">
-            <p>{card.label}</p>
-            <strong className={card.warning ? 'warning' : undefined}>{card.value}</strong>
-          </article>
+      {/* Stat strip */}
+      <div className="hist-stat-strip" style={{ marginBottom: 16 }}>
+        {[
+          {
+            label: 'Repos watched',
+            value: projectRows.filter((p) => p.statusTone !== 'untracked').length,
+            note: `${counts.untracked} untracked`,
+            color: null,
+          },
+          {
+            label: 'Critical',
+            value: counts.critical,
+            note: 'need attention now',
+            color: counts.critical > 0 ? 'var(--critical)' : null,
+          },
+          {
+            label: 'Avg rot score',
+            value: `${meanRotScore}%`,
+            note: 'tracked repos',
+            color:
+              meanRotScore > 50
+                ? 'var(--critical)'
+                : meanRotScore > 25
+                  ? 'var(--warning)'
+                  : null,
+          },
+          {
+            label: 'Open issues',
+            value: totalIssues,
+            note: 'across workspace',
+            color: totalIssues > 10 ? 'var(--critical)' : null,
+          },
+        ].map(({ label, value, note, color }) => (
+          <div key={label} className="hist-stat-cell">
+            <div className="hist-stat-label">{label}</div>
+            <div className="hist-stat-value" style={color ? { color } : {}}>
+              {value}
+            </div>
+            <div className="hist-stat-note">{note}</div>
+          </div>
         ))}
       </div>
 
-      <div className="projects-filter-row">
-        <input
-          aria-label="Search projects"
-          className="scan-history-search-input"
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search projects"
-          value={query}
-        />
-        <span className="projects-filter-btn">Showing {filteredRows.length} projects</span>
+      {/* Filters */}
+      <div className="issues-filterbar" style={{ marginBottom: 14 }}>
+        {(
+          [
+            ['all', 'All', counts.all],
+            ['critical', 'Critical', counts.critical],
+            ['degrading', 'Degrading', counts.degrading],
+            ['healthy', 'Healthy', counts.healthy],
+            ['untracked', 'Untracked', counts.untracked],
+          ] as [string, string, number][]
+        ).map(([k, label, n]) => (
+          <button
+            key={k}
+            type="button"
+            className={`filter-chip ${statusFilter === k ? 'active' : ''}`}
+            onClick={() => setStatusFilter(k)}
+          >
+            {label} <span className="count">{n}</span>
+          </button>
+        ))}
+        <span style={{ flex: 1 }} />
+        <div className="filter-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <circle cx="11" cy="11" r="5.5" />
+            <path d="m15 15 5 5" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Search projects…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="Search projects"
+          />
+        </div>
+        <select
+          className="select"
+          value={sort}
+          onChange={(e) => setSort(e.target.value)}
+          style={{ padding: '5px 9px', fontSize: 12 }}
+          aria-label="Sort projects"
+        >
+          <option value="rot-desc">Rot ↓</option>
+          <option value="rot-asc">Rot ↑</option>
+          <option value="name">Name A–Z</option>
+        </select>
       </div>
 
-      <section className="projects-list-shell">
+      {/* Table */}
+      <div className="card" style={{ overflow: 'hidden' }}>
         {loading ? (
           <div className="page-placeholder">Loading projects from backend scan data…</div>
-        ) : filteredRows.length === 0 ? (
-          <div className="page-placeholder">{error ?? 'No projects match your search.'}</div>
+        ) : sortedRows.length === 0 ? (
+          <div className="empty">
+            <h4>No projects found</h4>
+            <p>{error ?? 'No projects match your current filters.'}</p>
+          </div>
         ) : (
-          <div className="projects-card-list">
-            {filteredRows.map((project) => {
-              const isExpanded = expandedProjectKey === project.repository
-              const issues = expandedIssues[project.repository] ?? []
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>Repository</th>
+                <th style={{ width: 210 }}>Rot score</th>
+                <th style={{ width: 90 }}>Issues</th>
+                <th style={{ width: 80 }}>Scans</th>
+                <th style={{ width: 130 }}>Last scan</th>
+                <th style={{ width: 110 }}>Status</th>
+                <th style={{ width: 100 }} />
+              </tr>
+            </thead>
+            <tbody>
+              {sortedRows.map((project) => {
+                const isExpanded = expandedProjectKey === project.repository
+                const issues = expandedIssues[project.repository] ?? []
+                const leftColor =
+                  project.statusTone === 'critical'
+                    ? 'var(--critical)'
+                    : project.statusTone === 'degrading'
+                      ? 'var(--warning)'
+                      : project.statusTone === 'healthy'
+                        ? 'var(--success)'
+                        : 'var(--border)'
+                const avatarBg =
+                  project.statusTone === 'critical'
+                    ? 'linear-gradient(135deg, oklch(0.65 0.15 25), oklch(0.5 0.18 15))'
+                    : project.statusTone === 'healthy'
+                      ? 'linear-gradient(135deg, oklch(0.62 0.1 145), oklch(0.48 0.12 140))'
+                      : 'linear-gradient(135deg, oklch(0.68 0.12 75), oklch(0.52 0.14 70))'
 
-              return (
-                <article key={project.repository} className="project-card">
-                  <div className="project-card-top">
-                    <div className="project-card-main">
-                      <div className="project-card-title-row">
-                        <h3 className="project-card-title">{project.name}</h3>
-                        <span className={`project-status ${project.statusTone}`}>
-                          <span className="status-dot" aria-hidden="true" />
+                return (
+                  <>
+                    <tr
+                      key={project.repository}
+                      style={{ opacity: project.statusTone === 'untracked' ? 0.6 : 1 }}
+                    >
+                      <td style={{ boxShadow: `inset 3px 0 0 ${leftColor}`, paddingLeft: 20 }}>
+                        <div className="proj-row-name">
+                          <div className="proj-avatar" style={{ background: avatarBg }}>
+                            {project.name[0].toUpperCase()}
+                          </div>
+                          <div>
+                            <strong style={{ fontSize: 13.5 }}>{project.name}</strong>
+                            <small>{project.repository}</small>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        {project.statusTone === 'untracked' ? (
+                          <span
+                            style={{
+                              fontFamily: 'var(--font-mono)',
+                              fontSize: 11,
+                              color: 'var(--ink-3)',
+                            }}
+                          >
+                            not scanned
+                          </span>
+                        ) : (
+                          <div className="mini-score">
+                            <div className="mini-score-bar" style={{ width: 100 }}>
+                              <span
+                                style={{
+                                  width: `${project.score}%`,
+                                  background: rotColor(project.score),
+                                }}
+                              />
+                            </div>
+                            <strong
+                              style={{
+                                fontFamily: 'var(--font-serif)',
+                                fontSize: 20,
+                                letterSpacing: '-0.03em',
+                                color: rotColor(project.score),
+                              }}
+                            >
+                              {project.score}%
+                            </strong>
+                          </div>
+                        )}
+                      </td>
+                      <td>
+                        {project.latestMismatchCount > 0 ? (
+                          <span
+                            style={{
+                              fontFamily: 'var(--font-mono)',
+                              fontSize: 12,
+                              color:
+                                project.latestMismatchCount > 10
+                                  ? 'var(--critical)'
+                                  : project.latestMismatchCount > 3
+                                    ? 'var(--warning)'
+                                    : 'inherit',
+                            }}
+                          >
+                            {project.latestMismatchCount}
+                          </span>
+                        ) : (
+                          <span
+                            style={{
+                              fontFamily: 'var(--font-mono)',
+                              fontSize: 11,
+                              color: 'var(--ink-4)',
+                            }}
+                          >
+                            —
+                          </span>
+                        )}
+                      </td>
+                      <td
+                        style={{
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: 11.5,
+                          color: 'var(--ink-3)',
+                        }}
+                      >
+                        {project.scanCount || '—'}
+                      </td>
+                      <td
+                        style={{
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: 11.5,
+                          color: 'var(--ink-3)',
+                        }}
+                      >
+                        {formatRelativeTime(project.lastUpdated)}
+                      </td>
+                      <td>
+                        <span
+                          className={`pill ${
+                            project.statusTone === 'critical'
+                              ? 'pill-critical'
+                              : project.statusTone === 'degrading'
+                                ? 'pill-warning'
+                                : project.statusTone === 'healthy'
+                                  ? 'pill-success'
+                                  : ''
+                          }`}
+                        >
                           {project.latestStatus}
                         </span>
-                      </div>
+                      </td>
+                      <td onClick={(e) => e.stopPropagation()}>
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-ghost"
+                            onClick={() => handleToggleExpand(project)}
+                          >
+                            {isExpanded ? 'Hide' : 'Inspect'}
+                          </button>
+                          {project.latestScanId ? (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-ghost"
+                              onClick={() => onInspectProject?.(project.latestScanId)}
+                            >
+                              Full View
+                            </button>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
 
-                      <p className="project-card-repo">{project.repository}</p>
-
-                      <div className="project-card-meta">
-                        <span><strong>{formatScanRunLabel(project.lastUpdated)}</strong></span>
-                        <span>{project.scanCount} scan{project.scanCount === 1 ? '' : 's'}</span>
-                        <span>
-                          {project.latestMismatchCount} mismatch{project.latestMismatchCount === 1 ? '' : 'es'}
-                        </span>
-                        <span>ID: {shortenScanId(project.latestScanId)}</span>
-                      </div>
-                    </div>
-
-                    <div className="project-card-gauge">
-                      <RotGauge score={project.score} compact />
-                    </div>
-                  </div>
-
-                  <div className="project-card-actions">
-                    <button
-                      type="button"
-                      className="btn btn-ghost"
-                      onClick={() => handleToggleExpand(project)}
-                    >
-                      {isExpanded ? 'Hide' : 'Inspect'}
-                    </button>
-
-                    {project.latestScanId ? (
-                      <button
-                        type="button"
-                        className="btn btn-ghost"
-                        onClick={() => onInspectProject?.(project.latestScanId)}
-                      >
-                        Full View
-                      </button>
+                    {isExpanded ? (
+                      <tr key={`${project.repository}-details`}>
+                        <td
+                          colSpan={7}
+                          style={{ padding: 0, background: 'var(--bg-sunken)' }}
+                        >
+                          <div
+                            style={{
+                              padding: '16px 20px',
+                              borderTop: '1px solid var(--border)',
+                              display: 'grid',
+                              gap: 12,
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: 'grid',
+                                gridTemplateColumns: '1fr 1fr',
+                                gap: 12,
+                              }}
+                            >
+                              <div className="card card-pad" style={{ fontSize: 13 }}>
+                                <div className="detail-label" style={{ marginBottom: 6 }}>
+                                  Project Summary
+                                </div>
+                                <p style={{ color: 'var(--ink-2)', lineHeight: 1.5 }}>
+                                  <strong>{project.name}</strong> has {project.scanCount} scan
+                                  {project.scanCount === 1 ? '' : 's'}, rot score{' '}
+                                  <strong>{project.score}%</strong>, and{' '}
+                                  <strong>{project.latestMismatchCount}</strong> mismatch
+                                  {project.latestMismatchCount === 1 ? '' : 'es'}.
+                                </p>
+                              </div>
+                              <div className="card card-pad" style={{ fontSize: 13 }}>
+                                <div className="detail-label" style={{ marginBottom: 6 }}>
+                                  Latest Run
+                                </div>
+                                <p style={{ color: 'var(--ink-2)' }}>
+                                  {formatScanRunLabel(project.lastUpdated)}
+                                </p>
+                                <p
+                                  style={{
+                                    color: 'var(--ink-4)',
+                                    fontSize: 11,
+                                    fontFamily: 'var(--font-mono)',
+                                    marginTop: 4,
+                                  }}
+                                >
+                                  Scan ref: {shortenScanId(project.latestScanId)}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="card card-pad" style={{ fontSize: 13 }}>
+                              <div className="detail-label" style={{ marginBottom: 6 }}>
+                                Latest Scan Issues
+                              </div>
+                              {!project.latestScanId ? (
+                                <p style={{ color: 'var(--ink-3)' }}>
+                                  This project does not have a latest scan yet.
+                                </p>
+                              ) : expandedLoadingKey === project.repository ? (
+                                <p style={{ color: 'var(--ink-3)' }}>Loading issues…</p>
+                              ) : issues.length === 0 ? (
+                                <p style={{ color: 'var(--ink-3)' }}>
+                                  No linked issues found for the latest scan.
+                                </p>
+                              ) : (
+                                <ul style={{ paddingLeft: 16, display: 'grid', gap: 4 }}>
+                                  {issues.slice(0, 5).map((issue, index) => (
+                                    <li
+                                      key={`${project.repository}-issue-${index}`}
+                                      style={{ color: 'var(--ink-2)', fontSize: 12 }}
+                                    >
+                                      {summarizeIssue(issue, index)}
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
                     ) : null}
-                  </div>
-
-                  {isExpanded ? (
-                    <div className="project-card-expanded">
-                      <div className="project-details-grid">
-                        <div className="project-details-card">
-                          <p className="detail-label">Project Summary</p>
-                          <p className="detail-copy">
-                            <strong>{project.name}</strong> has {project.scanCount} total scan
-                            {project.scanCount === 1 ? '' : 's'}, a latest rot score of{' '}
-                            <strong>{project.score}%</strong>, and{' '}
-                            <strong>{project.latestMismatchCount}</strong> detected mismatch
-                            {project.latestMismatchCount === 1 ? '' : 'es'}.
-                          </p>
-                        </div>
-
-                        <div className="project-details-card">
-                          <p className="detail-label">Latest Run</p>
-                          <p className="detail-copy">{formatScanRunLabel(project.lastUpdated)}</p>
-                          <p className="detail-copy" style={{ opacity: 0.75 }}>
-                            Scan ref: {shortenScanId(project.latestScanId)}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="project-details-card">
-                        <p className="detail-label">Issues</p>
-
-                        {!project.latestScanId ? (
-                          <p className="detail-copy">This project does not have a latest scan yet.</p>
-                        ) : expandedLoadingKey === project.repository ? (
-                          <p className="detail-copy">Loading issues…</p>
-                        ) : issues.length === 0 ? (
-                          <p className="detail-copy">No linked issues were returned for the latest scan.</p>
-                        ) : (
-                          <ul className="project-issues-list">
-                            {issues.slice(0, 5).map((issue, index) => (
-                              <li key={`${project.repository}-issue-${index}`}>
-                                {summarizeIssue(issue, index)}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    </div>
-                  ) : null}
-                </article>
-              )
-            })}
-          </div>
+                  </>
+                )
+              })}
+            </tbody>
+          </table>
         )}
-
-        <footer className="projects-table-footer">
-          <span>
-            Showing {filteredRows.length} of {projectRows.length} projects
+        <div
+          style={{
+            padding: '12px 20px',
+            borderTop: '1px solid var(--border)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            background: 'var(--bg-sunken)',
+          }}
+        >
+          <span
+            style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)' }}
+          >
+            Showing {sortedRows.length} of {projectRows.length} projects
           </span>
-        </footer>
-      </section>
-    </section>
+        </div>
+      </div>
+    </div>
   )
 }
