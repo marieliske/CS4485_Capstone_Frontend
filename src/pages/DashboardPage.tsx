@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getFingerprintSummary, getScanIssues, getScans, type ScanRecord } from '../api/scans'
 import { useScanEvents } from '../hooks/useScanEvents'
+import { useSettings } from '../context/SettingsContext'
 
-type StatCardTone = 'positive' | 'negative'
+type StatCardTone = 'positive' | 'negative' | 'neutral'
 type ActivityTone = 'success' | 'warning' | 'info' | 'danger'
 
 interface DashboardActivity {
@@ -76,41 +77,81 @@ function formatRelativeTime(value?: string): string {
   return `${days}d ago`
 }
 
-function StatIcon({ type }: { type: 'folder' | 'search' | 'warning' | 'chart' }) {
-  if (type === 'folder') {
+function formatScanPseudoName(scan: ScanRecord, fallbackIndex: number): string {
+  const parsed = scan.created_at ? new Date(scan.created_at) : null
+  if (parsed && !Number.isNaN(parsed.getTime())) {
+    return `Scan ${parsed.toLocaleString([], {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    })}`
+  }
+
+  return `Scan ${fallbackIndex + 1}`
+}
+
+
+function RotViz({ pct, history, rotClass }: { pct: number; history: number[]; rotClass: string }) {
+  const { settings } = useSettings()
+  const r = 70
+  const circumference = 2 * Math.PI * r
+  const offset = circumference - (pct / 100) * circumference
+
+  if (settings.viz === 'colony') {
+    const cells = Array.from({ length: 100 }, (_, i) => {
+      const active = Math.round(pct)
+      const hot = Math.max(0, active - 70)
+      if (i < hot) return 'hot'
+      if (i < active) return 'on'
+      return ''
+    })
     return (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <path d="M3.5 8h6l1.7 2H20v8a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2z" />
-      </svg>
+      <div className="viz-colony">
+        {cells.map((cls, i) => (
+          <div key={i} className={`cell${cls ? ` ${cls}` : ''}`} />
+        ))}
+      </div>
     )
   }
 
-  if (type === 'search') {
+  if (settings.viz === 'sparkline') {
+    const pts = history.length > 1 ? history : [pct]
+    const w = 200
+    const h = 56
+    const xs = pts.map((_, i) => (i / Math.max(pts.length - 1, 1)) * w)
+    const ys = pts.map((v) => h - (v / 100) * h)
+    const linePath = xs.map((x, i) => `${i === 0 ? 'M' : 'L'}${x},${ys[i]}`).join(' ')
+    const fillPath = `${linePath} L${w},${h} L0,${h} Z`
+    const scoreColor = pct >= 65 ? 'var(--critical)' : pct >= 35 ? 'var(--warning)' : 'var(--success)'
     return (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <circle cx="11" cy="11" r="5.5" />
-        <path d="m15 15 5 5" />
-      </svg>
-    )
-  }
-
-  if (type === 'warning') {
-    return (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <circle cx="12" cy="12" r="8" />
-        <path d="M12 8v5" />
-        <path d="M12 16h.01" />
-      </svg>
+      <div className="viz-sparkline">
+        <div className="spark-value" style={{ color: scoreColor }}>{pct}<sup style={{ fontSize: '0.45em' }}>%</sup></div>
+        <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
+          <path className="spark-fill" d={fillPath} />
+          <path className="spark-line" d={linePath} />
+        </svg>
+        <div className="spark-label">Rot trend · last {pts.length} scans</div>
+      </div>
     )
   }
 
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <path d="M5 19V9" />
-      <path d="M10 19V5" />
-      <path d="M15 19v-7" />
-      <path d="M20 19v-4" />
-    </svg>
+    <div className={`rot-gauge ${rotClass}`}>
+      <svg viewBox="0 0 160 160">
+        <circle className="track" cx="80" cy="80" r={r} />
+        <circle
+          className="value"
+          cx="80" cy="80" r={r}
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+        />
+      </svg>
+      <div className="rot-gauge-inner">
+        <div className="pct">{pct}<sup>%</sup></div>
+        <div className="status">{pct >= 65 ? 'critical' : pct >= 35 ? 'degrading' : 'healthy'}</div>
+      </div>
+    </div>
   )
 }
 
@@ -175,11 +216,16 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
 
   const { isConnected: streamConnected } = useScanEvents(handleScanAdded, lastSeenId, initialized)
 
+  const healthProgress = Math.max(0, Math.min(100, Math.round(healthIndex ?? 0)))
+  const totalProjectCount = new Set(
+    scans.map((scan) => scan.repo_path).filter((path) => typeof path === 'string' && path.length > 0),
+  ).size
+
   const statCards = useMemo(
     () => [
       {
         title: 'Total Projects',
-        value: `${new Set(scans.map((scan) => scan.repo_path).filter((path) => typeof path === 'string' && path.length > 0)).size}`,
+        value: `${totalProjectCount}`,
         delta: 'live',
         tone: 'positive' as StatCardTone,
         icon: 'folder' as const,
@@ -200,13 +246,18 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
       },
       {
         title: 'Latest Scan Score',
-        value: `${Math.max(0, Math.min(100, Math.round(healthIndex ?? 0)))}%`,
+        value: `${healthProgress}%`,
         delta: 'live',
-        tone: ((healthIndex ?? 0) <= 20 ? 'positive' : (healthIndex ?? 0) <= 50 ? 'neutral' : 'negative') as StatCardTone,
+        tone:
+          healthProgress <= 20
+            ? ('positive' as StatCardTone)
+            : healthProgress <= 50
+              ? ('neutral' as StatCardTone)
+              : ('negative' as StatCardTone),
         icon: 'chart' as const,
       },
     ],
-    [healthIndex, openIssues, scans],
+    [healthProgress, openIssues, scans.length, totalProjectCount],
   )
 
   const activityRows = useMemo<DashboardActivity[]>(() => {
@@ -228,7 +279,7 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
 
       return {
         scanId: scan.id,
-        title: `Scan Completed: ${scan.id || `Scan ${index + 1}`}`,
+        title: `Scan Completed: ${formatScanPseudoName(scan, index)}`,
         subtitle:
           mismatches !== null
             ? `Detected ${mismatches} potential mismatch${mismatches === 1 ? '' : 'es'} in this run.`
@@ -239,11 +290,6 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
     })
   }, [scans])
 
-  const healthProgress = Math.max(0, Math.min(100, Math.round(healthIndex ?? 0)))
-  const totalProjectCount = new Set(
-    scans.map((scan) => scan.repo_path).filter((path) => typeof path === 'string' && path.length > 0),
-  ).size
-
   const statActions: Record<string, (() => void) | undefined> = {
     'Total Projects': onOpenProjects,
     'Total Scans': () => onOpenHistory?.(),
@@ -251,108 +297,238 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
     'Latest Scan Score': () => onOpenHistory?.(scans[0]?.id),
   }
 
-  return (
-    <section className="dashboard-page">
-      <header className="dashboard-welcome">
-        <h2>Welcome back{userName ? `, ${userName}` : ''}</h2>
-        <p>Here&apos;s a live summary of your documentation health from Firestore.</p>
-        <div className="dashboard-live-meta">
-          <span className={loading ? 'dashboard-live-pill loading' : 'dashboard-live-pill'}>
-            {loading ? 'Refreshing...' : streamConnected ? 'Live stream' : 'Polling mode'}
-          </span>
-          {lastUpdatedAt ? <small>Last updated {formatRelativeTime(lastUpdatedAt.toISOString())}</small> : null}
-          {error ? <small className="dashboard-error-text">{error}</small> : null}
-        </div>
-      </header>
+  const rotPct = healthProgress
+  const rotClass = rotPct >= 65 ? 'crit' : rotPct >= 35 ? 'warn' : ''
+  const recentScores = useMemo(
+    () => scans.slice(0, 8).map((s) => asFiniteNumber(s.rot_score) ?? 0).reverse(),
+    [scans],
+  )
 
-      <div className="dashboard-stats-grid">
+  const toneToFeedClass = (tone: ActivityTone) => {
+    if (tone === 'success') return 'success'
+    if (tone === 'warning') return 'warning'
+    if (tone === 'danger') return 'danger'
+    return 'info'
+  }
+
+  return (
+    <div className="dash-grid">
+      {/* Page head */}
+      <div className="page-head">
+        <div>
+          <div className="kicker">
+            Overview · {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+          </div>
+          <h1>
+            {loading ? 'Loading dashboard…' : `Docs are ${rotPct}% rotten`}
+          </h1>
+          <p className="sub">
+            {totalProjectCount} tracked {totalProjectCount === 1 ? 'repository' : 'repositories'} ·{' '}
+            {openIssues} open {openIssues === 1 ? 'issue' : 'issues'} ·{' '}
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>
+              {loading ? 'refreshing…' : streamConnected ? '● live' : '○ polling'}
+            </span>
+            {error ? <span style={{ color: 'var(--critical)', marginLeft: 12, fontSize: 12 }}>{error}</span> : null}
+          </p>
+        </div>
+        <div className="page-head-actions">
+          <button type="button" className="btn" onClick={() => onOpenHistory?.()}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 8v5l3 2"/><circle cx="12" cy="12" r="8"/></svg>
+            Scan History
+          </button>
+          <button type="button" className="btn btn-accent" onClick={onOpenProjects}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            Add Repo
+          </button>
+        </div>
+      </div>
+
+      {/* Hero row */}
+      <div className="dash-hero">
+        {/* Rot index card */}
+        <div className="card rot-hero-card">
+          <div className="rot-hero-head">
+            <div>
+              <div className="kicker">Rot index · workspace</div>
+              <h2>Documentation health for {totalProjectCount} {totalProjectCount === 1 ? 'repo' : 'repos'}</h2>
+            </div>
+            <span className={`pill ${streamConnected ? 'pill-live' : ''}`}>
+              {streamConnected ? 'Live' : 'Polling'}
+            </span>
+          </div>
+          <div className="rot-hero-body">
+            <RotViz pct={rotPct} history={recentScores} rotClass={rotClass} />
+            <div className="rot-meta-list">
+              <div className="rot-meta-row">
+                <span className="label">Open issues</span>
+                <span className="value" style={{ color: openIssues > 0 ? 'var(--critical)' : 'var(--success)' }}>{openIssues} open</span>
+              </div>
+              <div className="rot-meta-row">
+                <span className="label">Total scans</span>
+                <span className="value mono">{scans.length}</span>
+              </div>
+              <div className="rot-meta-row">
+                <span className="label">Repos tracked</span>
+                <span className="value mono">{totalProjectCount}</span>
+              </div>
+              <div className="rot-meta-row">
+                <span className="label">Last updated</span>
+                <span className="value mono">{lastUpdatedAt ? formatRelativeTime(lastUpdatedAt.toISOString()) : '—'}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick actions */}
+        <div className="card">
+          <div className="card-head">
+            <h3>Quick actions</h3>
+          </div>
+          <div className="qa-grid">
+            <button className="qa-btn primary" type="button" onClick={onOpenIssues}>
+              <div className="qa-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ width: 16, height: 16 }}>
+                  <circle cx="12" cy="12" r="8"/><path d="M12 8v5"/><path d="M12 16h.01"/>
+                </svg>
+              </div>
+              <div>
+                <strong>Triage {openIssues} open {openIssues === 1 ? 'issue' : 'issues'}</strong>
+                <small>Review and close documentation mismatches</small>
+              </div>
+              <div className="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 6l6 6-6 6"/></svg></div>
+            </button>
+            <button className="qa-btn" type="button" onClick={() => onOpenHistory?.()}>
+              <div className="qa-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ width: 16, height: 16 }}>
+                  <path d="M12 8v5l3 2"/><circle cx="12" cy="12" r="8"/>
+                </svg>
+              </div>
+              <div>
+                <strong>Review last scan</strong>
+                <small>Inspect the most recent scan run</small>
+              </div>
+              <div className="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 6l6 6-6 6"/></svg></div>
+            </button>
+            <button className="qa-btn" type="button" onClick={onOpenProjects}>
+              <div className="qa-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ width: 16, height: 16 }}>
+                  <path d="M3.5 8h6l1.7 2H20v8a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2z"/>
+                </svg>
+              </div>
+              <div>
+                <strong>Watch a new repository</strong>
+                <small>Connect a GitHub repo to track</small>
+              </div>
+              <div className="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 6l6 6-6 6"/></svg></div>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Stat strip */}
+      <div className="stat-strip">
         {statCards.map((card) => (
           <button
             key={card.title}
-            className={`dashboard-stat-card dashboard-stat-card-button ${statActions[card.title] ? 'interactive' : ''}`}
-            onClick={statActions[card.title]}
+            className="stat-cell"
             type="button"
+            onClick={statActions[card.title]}
           >
-            <div className="dashboard-stat-top-row">
-              <span className="dashboard-tile-icon" aria-hidden="true">
-                <StatIcon type={card.icon} />
-              </span>
-              <span className={`dashboard-delta-pill ${card.tone}`}>{card.delta}</span>
+            <div className="stat-label">
+              <span className={`dot dot-${card.tone === 'positive' ? 'success' : card.tone === 'negative' ? 'critical' : 'neutral'}`} />
+              {card.title}
             </div>
-            <p className="dashboard-stat-title">{card.title}</p>
-            <p className="dashboard-stat-value">{card.value}</p>
-            {card.title === 'Total Projects' ? (
-              <small className="dashboard-card-meta">{totalProjectCount > 0 ? 'Open project workspace' : 'Awaiting scans'}</small>
-            ) : (
-              <small className="dashboard-card-meta">Open detail view</small>
-            )}
+            <div className="stat-value">{card.value}</div>
+            <div className="stat-trend">{card.delta}</div>
           </button>
         ))}
       </div>
 
-      <div className="dashboard-bottom-grid">
-        <section className="dashboard-panel activity-panel">
-          <header className="dashboard-panel-headline">
+      {/* Activity + info */}
+      <div className="grid-2">
+        {/* Activity feed */}
+        <div className="card">
+          <div className="card-head">
             <h3>Recent Activity</h3>
-            <button type="button" className="dashboard-text-link" onClick={() => onOpenHistory?.()}>
-              latest scans
-            </button>
-          </header>
-
-          <ul className="activity-list">
-            {activityRows.map((activity) => (
-              <li key={activity.title} className="activity-row">
-                <button
-                  className={`activity-row-button ${activity.scanId ? 'interactive' : ''}`}
-                  onClick={() => onOpenHistory?.(activity.scanId)}
-                  type="button"
-                >
-                  <span className={`activity-dot ${activity.tone}`} aria-hidden="true" />
-                  <div className="activity-copy">
-                    <p>{activity.title}</p>
-                    <small>{activity.subtitle}</small>
-                  </div>
-                  <span className="activity-time">{activity.time}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <aside className="dashboard-panel quick-actions-panel">
-          <h3>Quick Actions</h3>
-          <button type="button" className="action-primary-btn" onClick={() => onOpenHistory?.()}>
-            <span>New Scan</span>
-            <span aria-hidden="true">-&gt;</span>
-          </button>
-
-          <div className="action-secondary-grid">
-            <button type="button" className="action-secondary-btn" onClick={onOpenProjects}>
-              Add Project
-            </button>
-            <button type="button" className="action-secondary-btn" onClick={() => onOpenHistory?.()}>
-              Scan History
-            </button>
-          </div>
-
-          <section className="health-card">
-            <header>
-              <h4>Health Index</h4>
-              <strong>{healthProgress}%</strong>
-            </header>
-            <div
-              className="health-track"
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={healthProgress}
-            >
-              <span style={{ width: `${healthProgress}%` }} />
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span className="pill">Last {scans.length} scans</span>
+              <button type="button" className="btn btn-sm btn-ghost" onClick={() => onOpenHistory?.()}>All scans</button>
             </div>
-            <p>Based on the latest backend scan and fingerprint summary data.</p>
-          </section>
-        </aside>
+          </div>
+          <div>
+            {activityRows.map((activity) => (
+              <button
+                key={activity.title}
+                className="feed-item"
+                type="button"
+                onClick={() => onOpenHistory?.(activity.scanId)}
+                style={{ boxShadow: `inset 3px 0 0 ${activity.tone === 'success' ? 'var(--success)' : activity.tone === 'warning' ? 'var(--warning)' : activity.tone === 'danger' ? 'var(--critical)' : 'var(--info)'}` }}
+              >
+                <div className={`feed-icon ${toneToFeedClass(activity.tone)}`}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    {activity.tone === 'success' ? (
+                      <><path d="M20 6L9 17l-5-5"/></>
+                    ) : activity.tone === 'warning' ? (
+                      <><path d="M12 4 21 19H3z"/><path d="M12 9v4"/><path d="M12 16h.01"/></>
+                    ) : (
+                      <><circle cx="11" cy="11" r="5.5"/><path d="m15 15 5 5"/></>
+                    )}
+                  </svg>
+                </div>
+                <div className="feed-copy">
+                  <strong>{activity.title}</strong>
+                  <small>{activity.subtitle}</small>
+                </div>
+                <div className="feed-time">{activity.time}</div>
+              </button>
+            ))}
+          </div>
+          {scans.length > 4 ? (
+            <div style={{ padding: '10px 18px', borderTop: '1px solid var(--border)' }}>
+              <button type="button" className="btn btn-sm btn-ghost" style={{ width: '100%', justifyContent: 'center' }} onClick={() => onOpenHistory?.()}>
+                View full scan history
+              </button>
+            </div>
+          ) : null}
+        </div>
+
+        {/* Summary stats card */}
+        <div className="card">
+          <div className="card-head">
+            <h3>Workspace summary</h3>
+          </div>
+          <div className="card-pad">
+            <div className="rot-meta-list">
+              <div className="rot-meta-row">
+                <span className="label">User</span>
+                <span className="value">{userName ?? '—'}</span>
+              </div>
+              <div className="rot-meta-row">
+                <span className="label">Stream</span>
+                <span className="value" style={{ color: streamConnected ? 'var(--success)' : 'var(--ink-3)' }}>
+                  {streamConnected ? '● connected' : '○ polling'}
+                </span>
+              </div>
+              <div className="rot-meta-row">
+                <span className="label">Repos</span>
+                <span className="value mono">{totalProjectCount}</span>
+              </div>
+              <div className="rot-meta-row">
+                <span className="label">Scans</span>
+                <span className="value mono">{scans.length}</span>
+              </div>
+              <div className="rot-meta-row">
+                <span className="label">Open issues</span>
+                <span className="value mono" style={{ color: openIssues > 0 ? 'var(--critical)' : 'inherit' }}>{openIssues}</span>
+              </div>
+              <div className="rot-meta-row">
+                <span className="label">Health score</span>
+                <span className="value mono" style={{ color: rotPct >= 65 ? 'var(--critical)' : rotPct >= 35 ? 'var(--warning)' : 'var(--success)' }}>{rotPct}%</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-    </section>
+    </div>
   )
 }
