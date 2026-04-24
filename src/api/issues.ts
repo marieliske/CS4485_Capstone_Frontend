@@ -163,22 +163,14 @@ export async function getIssues(scanId?: string) {
     return []
   }
 
-  if (scanId) {
-    const selectedScan = scans.find((scan) => scan.id === scanId)
-    if (!selectedScan) {
-      return []
-    }
+  const targetScan = scanId
+    ? scans.find((scan) => scan.id === scanId)
+    : scans[0]
 
-    const rawIssues = await getScanIssues(selectedScan.id)
-    return rawIssues.map((issue, index) => normalizeIssue(issue, index, selectedScan))
+  if (!targetScan) {
+    return []
   }
 
-  const issuesPerScan = await Promise.all(
-    scans.map(async (scan) => {
-      const rawIssues = await getScanIssues(scan.id)
-      return rawIssues.map((issue, index) => normalizeIssue(issue, index, scan))
-    }),
-  )
-
-  return issuesPerScan.flat()
+  const rawIssues = await getScanIssues(targetScan.id)
+  return rawIssues.map((issue, index) => normalizeIssue(issue, index, targetScan))
 }
