@@ -675,9 +675,9 @@
 .rot-gauge .value { fill: none; stroke: var(--accent); stroke-width: 10; stroke-linecap: round; transition: stroke-dashoffset 900ms cubic-bezier(0.16, 1, 0.3, 1); }
 .rot-gauge.warn .value { stroke: var(--warning); }
 .rot-gauge.crit .value { stroke: var(--critical); }
-.rot-gauge-inner { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
+.rot-gauge-inner { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .rot-gauge-inner .pct { font-family: var(--font-serif); font-size: 44px; font-weight: 400; line-height: 1; letter-spacing: -0.04em; }
-.rot-gauge-inner .pct sup { font-size: 18px; color: var(--ink-3); }
+.rot-gauge-inner .pct sup { font-size: 18px; color: var(--ink-3); vertical-align: 0.3em; }
 .rot-gauge-inner .status { font-family: var(--font-mono); font-size: 9px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.12em; margin-top: 4px; }
 
 /* Stat strip */

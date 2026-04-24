@@ -1,4 +1,5 @@
 import type { Issue } from '../../types/issue'
+import { AutoFixButton } from './AutoFixButton'
 
 interface IssueDetailPanelProps {
   issue: Issue | null
@@ -151,6 +152,8 @@ export function IssueDetailPanel({ issue }: IssueDetailPanelProps) {
           ) : null}
         </div>
       </div>
+
+      <AutoFixButton issue={issue} />
     </div>
   )
 }
