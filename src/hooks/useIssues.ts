@@ -63,6 +63,7 @@ export function useIssues(scanId?: string | null) {
         }
 
         const selectedScan = scanId ? scans.find((scan) => scan.id === scanId) : scans[0]
+        setResolvedScanId(selectedScan?.id ?? null)
         const openLiveIssues = liveIssues.filter((issue) => issue.status === 'open')
         const highCount = openLiveIssues.filter((issue) => issue.priority === 'high').length
         const mediumCount = openLiveIssues.filter((issue) => issue.priority === 'medium').length
@@ -83,6 +84,7 @@ export function useIssues(scanId?: string | null) {
           setError(null)
         } else {
           setIssues([])
+          setResolvedScanId(null)
           setScanReport(buildSummary([]))
           setError('No backend issues were returned yet.')
         }
@@ -91,9 +93,15 @@ export function useIssues(scanId?: string | null) {
           return
         }
 
+        const message = err instanceof Error ? err.message : 'Unable to load backend issues.'
         setIssues([])
+        setResolvedScanId(null)
         setScanReport(buildSummary([]))
-        setError(err instanceof Error ? err.message : 'Unable to load backend issues.')
+        if (message.toLowerCase().includes('missing or insufficient permissions')) {
+          setError('Issues are temporarily unavailable for this session.')
+        } else {
+          setError(message)
+        }
       } finally {
         if (!cancelled) {
           setLoading(false)

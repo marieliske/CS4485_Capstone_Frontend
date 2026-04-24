@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { User } from 'firebase/auth'
 import { firebaseConfigured, firebaseMissingEnvKeys } from './firebase'
-import { setGithubUsernameFilter } from './api/firestore'
 import { DashboardPage } from './pages/DashboardPage'
 import { ProjectsPage } from './pages/ProjectsPage'
 import { IssuesPage } from './pages/IssuesPage'
@@ -10,6 +8,7 @@ import { ConfigurationPage } from './pages/ConfigurationPage'
 import { AuthProvider, useAuth } from './auth/AuthContext'
 import { AuthPage } from './pages/AuthPage'
 import { UserSettingsWireframePage } from './pages/UserSettingsWireframePage'
+import { setGithubUsernameFilter } from './api/firestore'
 
 import './App.css'
 
@@ -17,91 +16,9 @@ type PageKey =
   | 'dashboard'
   | 'projects'
   | 'issues'
-  | 'history'
   | 'configuration'
   | 'wf-user-settings'
   | 'scanHistory'
-
-const githubHandlePattern = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i
-
-function normalizeHandle(value: string | null | undefined): string | null {
-  const normalized = value?.trim().toLowerCase() ?? ''
-  return githubHandlePattern.test(normalized) ? normalized : null
-}
-
-function extractGitHubUsername(user: User): string | null {
-  const stored = normalizeHandle(localStorage.getItem('docrot_github_username'))
-  if (stored) {
-    return stored
-  }
-
-  const rawUser = user as unknown as {
-    reloadUserInfo?: {
-      screenName?: unknown
-      screen_name?: unknown
-      login?: unknown
-    }
-  }
-
-  const reloadScreenName = rawUser.reloadUserInfo?.screenName
-  if (typeof reloadScreenName === 'string') {
-    const parsed = normalizeHandle(reloadScreenName)
-    if (parsed) return parsed
-  }
-
-  const reloadSnakeScreenName = rawUser.reloadUserInfo?.screen_name
-  if (typeof reloadSnakeScreenName === 'string') {
-    const parsed = normalizeHandle(reloadSnakeScreenName)
-    if (parsed) return parsed
-  }
-
-  const reloadLogin = rawUser.reloadUserInfo?.login
-  if (typeof reloadLogin === 'string') {
-    const parsed = normalizeHandle(reloadLogin)
-    if (parsed) return parsed
-  }
-
-  const githubProviderInfo = user.providerData.find((provider) => provider.providerId === 'github.com')
-
-  const providerDisplayName = normalizeHandle(githubProviderInfo?.displayName)
-  if (providerDisplayName) {
-    return providerDisplayName
-  }
-
-  const email = user.email ?? ''
-  const noreplyMatch = email.match(/^\d+\+([a-z\d-]+)@users\.noreply\.github\.com$/i)
-  if (noreplyMatch?.[1]) {
-    const parsed = normalizeHandle(noreplyMatch[1])
-    if (parsed) return parsed
-  }
-
-  return null
-}
-
-async function resolveGitHubUsername(user: User): Promise<string | null> {
-  const extracted = extractGitHubUsername(user)
-  if (extracted) {
-    return extracted
-  }
-
-  const githubProviderInfo = user.providerData.find((provider) => provider.providerId === 'github.com')
-  const githubUid = githubProviderInfo?.uid ?? ''
-  if (!/^\d+$/.test(githubUid)) {
-    return null
-  }
-
-  try {
-    const response = await fetch(`https://api.github.com/user/${githubUid}`)
-    if (!response.ok) {
-      return null
-    }
-
-    const payload = (await response.json()) as { login?: unknown }
-    return typeof payload.login === 'string' ? normalizeHandle(payload.login) : null
-  } catch {
-    return null
-  }
-}
 
 function NavIcon({ children }: { children: ReactNode }) {
   return (
@@ -133,11 +50,11 @@ function BellIcon() {
 
 function AppShell() {
   const { user, logout } = useAuth()
+
   const [activePage, setActivePage] = useState<PageKey>('dashboard')
-  const [historyScanId, setHistoryScanId] = useState<string | null>(null)
-  const [issuesScanId, setIssuesScanId] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [topbarQuery, setTopbarQuery] = useState('')
+  const [focusedScanId, setFocusedScanId] = useState<string | null>(null)
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', 'dark')
@@ -149,12 +66,12 @@ function AppShell() {
   }
 
   const openHistory = (scanId?: string) => {
-    setHistoryScanId(scanId ?? null)
+    setFocusedScanId(scanId ?? null)
     setActivePage('scanHistory')
   }
 
-  const openIssues = (scanId?: string) => {
-    setIssuesScanId(scanId ?? null)
+  const openIssues = () => {
+    setFocusedScanId(null)
     setActivePage('issues')
   }
 
@@ -228,7 +145,7 @@ function AppShell() {
   let pageContent: React.ReactNode = (
     <DashboardPage
       onOpenHistory={openHistory}
-      onOpenIssues={openIssues}
+      onOpenIssues={() => openIssues()}
       onOpenProjects={openProjects}
       userName={user?.displayName ?? user?.email ?? 'User'}
     />
@@ -241,15 +158,19 @@ function AppShell() {
 
   if (activePage === 'issues') {
     pageTitle = 'Issues'
-    pageContent = <IssuesPage initialScanId={issuesScanId} onOpenHistory={openHistory} />
+    pageContent = (
+      <IssuesPage
+        onOpenHistory={() => openHistory(focusedScanId ?? undefined)}
+      />
+    )
   }
 
   if (activePage === 'scanHistory') {
     pageTitle = 'Scan History'
     pageContent = (
       <ScanHistoryPage
-        initialSelectedScanId={historyScanId}
-        onOpenIssuesForScan={(scanId) => openIssues(scanId)}
+        initialSelectedScanId={focusedScanId}
+        onOpenIssuesForScan={() => openIssues()}
       />
     )
   }
@@ -265,41 +186,41 @@ function AppShell() {
   }
 
   const topbarPrimaryAction = useMemo(() => {
-  if (activePage === 'dashboard') {
-    return {
-      label: '+ Create New Project',
-      className: 'create-project-btn',
-      onClick: () => {
-        setActivePage('projects')
-        window.setTimeout(() => {
+    if (activePage === 'dashboard') {
+      return {
+        label: '+ Create New Project',
+        className: 'create-project-btn',
+        onClick: () => {
+          setActivePage('projects')
+          window.setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('projects:create'))
+          }, 0)
+        },
+      }
+    }
+
+    if (activePage === 'projects') {
+      return {
+        label: '+ Create New Project',
+        className: 'create-project-btn',
+        onClick: () => {
           window.dispatchEvent(new CustomEvent('projects:create'))
-        }, 0)
-      },
+        },
+      }
     }
-  }
 
-  if (activePage === 'projects') {
-    return {
-      label: '+ Create New Project',
-      className: 'create-project-btn',
-      onClick: () => {
-        window.dispatchEvent(new CustomEvent('projects:create'))
-      },
+    if (activePage === 'configuration') {
+      return {
+        label: 'Apply Changes',
+        className: 'apply-changes-btn',
+        onClick: () => {
+          window.dispatchEvent(new CustomEvent('configuration:apply'))
+        },
+      }
     }
-  }
 
-  if (activePage === 'configuration') {
-    return {
-      label: 'Apply Changes',
-      className: 'apply-changes-btn',
-      onClick: () => {
-        window.dispatchEvent(new CustomEvent('configuration:apply'))
-      },
-    }
-  }
-
-  return null
-}, [activePage])
+    return null
+  }, [activePage])
 
   return (
     <div className="shell" data-sidebar={sidebarCollapsed ? 'collapsed' : undefined}>
@@ -500,10 +421,9 @@ function App() {
   ) : (
     <AuthPage
       onAuthenticate={(username) => {
-        const normalized = normalizeHandle(username)
-        if (normalized) {
-          localStorage.setItem('docrot_github_username', normalized)
-          setGithubUsernameFilter(normalized)
+        if (username) {
+          localStorage.setItem('docrot_github_username', username)
+          setGithubUsernameFilter(username)
         }
       }}
     />

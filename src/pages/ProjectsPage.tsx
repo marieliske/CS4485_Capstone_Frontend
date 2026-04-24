@@ -185,6 +185,7 @@ function rotColor(score: number): string {
   return score >= 65 ? 'var(--critical)' : score >= 35 ? 'var(--warning)' : 'var(--success)'
 }
 
+
 export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
   const [projectRows, setProjectRows] = useState<ProjectRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -198,6 +199,7 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
   const [expandedProjectKey, setExpandedProjectKey] = useState<string | null>(null)
   const [expandedIssues, setExpandedIssues] = useState<Record<string, ScanIssueRecord[]>>({})
   const [expandedLoadingKey, setExpandedLoadingKey] = useState<string | null>(null)
+
   const deferredQuery = useDeferredValue(query)
 
   useEffect(() => {
