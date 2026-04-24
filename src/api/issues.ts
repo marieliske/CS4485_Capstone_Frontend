@@ -2,7 +2,6 @@ import { asObject } from './client'
 import { getScans, getScanIssues } from './scans'
 import { closeIssue as firestoreCloseIssue } from './firestore'
 import type { ScanRecord } from './scans'
-import { closeIssue as firestoreCloseIssue } from './firestore'
 import type { Issue } from '../types/issue'
 
 function parsePriority(value: unknown): Issue['priority'] {
