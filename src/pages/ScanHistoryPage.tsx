@@ -122,6 +122,7 @@ export function ScanHistoryPage({
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [page, setPage] = useState(0)
   const [detailState, setDetailState] = useState<ScanDetailState>({
     scanId: null,
     issues: [],
@@ -188,6 +189,9 @@ export function ScanHistoryPage({
       return matchesQuery(scan, normalizedQuery)
     })
   }, [deferredQuery, scans, statusFilter])
+
+  const totalPages = Math.ceil(filteredScans.length / PAGE_SIZE)
+  const pagedScans = filteredScans.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   const activeSelectedScanId = selectedScanId ?? filteredScans[0]?.id ?? null
   const selectedScan =
