@@ -87,10 +87,13 @@ function normalizeIssue(rawPayload: unknown, index: number, scanId: string): Iss
     ),
   )
   const docPath = toStringValue(
-    raw.doc_path,
+    raw.doc_file,   // Firestore field name used by ingestScan / applyFix
     toStringValue(
-      raw.docPath,
-      toStringValue(docReference.file_path, toStringValue(nestedDoc.path, codePath)),
+      raw.doc_path,
+      toStringValue(
+        raw.docPath,
+        toStringValue(docReference.file_path, toStringValue(nestedDoc.path, codePath)),
+      ),
     ),
   )
   const docSection = toStringValue(

@@ -8,6 +8,15 @@ interface AutoFixButtonProps {
 
 const TOKEN_STORAGE_KEY = 'docrot.github_token'
 
+const SUPPORTED_REASONS = new Set([
+  'signature_changed',
+  'parameter_added',
+  'parameter_removed',
+  'parameter_renamed',
+  'return_type_changed',
+  'symbol_removed',
+])
+
 function readStoredToken(): string {
   try {
     return sessionStorage.getItem(TOKEN_STORAGE_KEY) ?? ''
@@ -30,6 +39,7 @@ export function AutoFixButton({ issue }: AutoFixButtonProps) {
   const [error, setError] = useState<string | null>(null)
 
   const canRun = Boolean(issue.repoId && issue.scanId && issue.id)
+  const reasonSupported = SUPPORTED_REASONS.has(issue.reason)
 
   async function run(dryRun: boolean) {
     setBusy(true)
@@ -75,6 +85,19 @@ export function AutoFixButton({ issue }: AutoFixButtonProps) {
     } finally {
       setBusy(false)
     }
+  }
+
+  if (!reasonSupported) {
+    return (
+      <div className="detail-section">
+        <p className="detail-label">Auto-Fix</p>
+        <p className="detail-copy">
+          Auto-fix is not available for <strong>{issue.reason}</strong> flags. The
+          deterministic patch generator handles signature, parameter, return-type, and
+          symbol-removed changes only.
+        </p>
+      </div>
+    )
   }
 
   return (
