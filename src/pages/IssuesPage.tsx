@@ -23,8 +23,8 @@ const STATUS_CHIPS: Array<{ key: string; label: string }> = [
   { key: 'closed', label: 'Closed' },
 ]
 
-export function IssuesPage({ initialScanId, onOpenHistory, searchQuery }: IssuesPageProps) {
-  const { issues, scanReport, loading, error, openIssues, closeIssue } = useIssues(initialScanId)
+export function IssuesPage({ onOpenHistory, searchQuery }: IssuesPageProps) {
+  const { issues, scanReport, loading, error, openIssues, closeIssue } = useIssues()
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('open')
   const [sortBy, setSortBy] = useState<'priority' | 'date' | 'repo'>('date')
