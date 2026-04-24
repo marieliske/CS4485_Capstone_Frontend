@@ -92,11 +92,6 @@ function getStatusTone(status?: string): 'completed' | 'failed' | 'progress' {
   return 'completed'
 }
 
-function matchesQuery(scan: ScanRecord, query: string): boolean {
-  return [scan.id ?? '', scan.repo_path ?? '', scan.commit_sha ?? '', scan.status ?? ''].some(
-    (value) => value.toLowerCase().includes(query),
-  )
-}
 
 function summarizeIssue(record: ScanIssueRecord, index: number): string {
   const issue = asObject(record)
