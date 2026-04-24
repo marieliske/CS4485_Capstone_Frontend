@@ -107,10 +107,10 @@ export function AutoFixButton({ issue }: AutoFixButtonProps) {
         Apply a deterministic documentation patch for this issue and open a pull
         request on the source repo. Dry-run previews the patch without touching GitHub.
       </p>
-      <div className="badge-row" style={{ gap: '0.5rem' }}>
+      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
         <button
           type="button"
-          className="export-btn"
+          className="btn btn-ghost btn-sm"
           onClick={() => run(true)}
           disabled={busy || !canRun}
         >
@@ -118,7 +118,7 @@ export function AutoFixButton({ issue }: AutoFixButtonProps) {
         </button>
         <button
           type="button"
-          className="scan-btn"
+          className="btn btn-accent btn-sm"
           onClick={() => run(false)}
           disabled={busy || !canRun}
         >
@@ -127,28 +127,26 @@ export function AutoFixButton({ issue }: AutoFixButtonProps) {
       </div>
 
       {!canRun ? (
-        <p className="issues-inline-error" style={{ marginTop: '0.5rem' }}>
+        <p style={{ marginTop: '0.5rem', fontSize: 12, color: 'var(--critical)' }}>
           This issue is missing repo/scan identifiers, so auto-fix can't run.
         </p>
       ) : null}
 
       {error ? (
-        <p className="issues-inline-error" style={{ marginTop: '0.5rem' }}>
+        <p style={{ marginTop: '0.5rem', fontSize: 12, color: 'var(--critical)' }}>
           {error}
         </p>
       ) : null}
 
       {result && result.success ? (
-        <div className="detail-section" style={{ marginTop: '0.75rem' }}>
+        <div style={{ marginTop: '0.75rem', fontSize: 13 }}>
           {result.dry_run ? (
-            <p className="detail-copy">
-              <strong>Dry run OK.</strong> {result.summary ?? 'Patch generated successfully.'}
-            </p>
+            <p><strong>Dry run OK.</strong> {result.summary ?? 'Patch generated successfully.'}</p>
           ) : (
-            <p className="detail-copy">
+            <p>
               <strong>PR opened.</strong>{' '}
               {result.pr_url ? (
-                <a href={result.pr_url} target="_blank" rel="noreferrer">
+                <a href={result.pr_url} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>
                   {result.pr_url}
                 </a>
               ) : (
@@ -157,12 +155,12 @@ export function AutoFixButton({ issue }: AutoFixButtonProps) {
             </p>
           )}
           {result.doc_path ? (
-            <p className="detail-copy">
+            <p style={{ marginTop: '0.25rem', color: 'var(--ink-3)' }}>
               <em>Doc:</em> {result.doc_path}
             </p>
           ) : null}
           {result.todo_notes && result.todo_notes.length > 0 ? (
-            <ul>
+            <ul style={{ marginTop: '0.25rem', paddingLeft: '1rem' }}>
               {result.todo_notes.map((note, idx) => (
                 <li key={idx}>{note}</li>
               ))}
