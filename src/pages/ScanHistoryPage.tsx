@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { asObject, type JsonObject } from '../api/client'
 import {
   getAISuggestions,
@@ -112,7 +112,6 @@ function summarizeIssue(record: ScanIssueRecord, index: number): string {
 export function ScanHistoryPage({
   initialSelectedScanId,
   onOpenIssuesForScan,
-  searchQuery,
 }: ScanHistoryPageProps) {
   const [scans, setScans] = useState<ScanRecord[]>([])
   const [selectedScanId, setSelectedScanId] = useState<string | null>(
@@ -120,7 +119,6 @@ export function ScanHistoryPage({
   )
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [page, setPage] = useState(0)
   const [detailState, setDetailState] = useState<ScanDetailState>({
@@ -131,15 +129,13 @@ export function ScanHistoryPage({
     error: null,
   })
 
-  const deferredQuery = useDeferredValue(query)
-
   useEffect(() => {
     setSelectedScanId(initialSelectedScanId ?? null)
   }, [initialSelectedScanId])
 
   useEffect(() => {
     setPage(0)
-  }, [deferredQuery, statusFilter])
+  }, [statusFilter])
 
   useEffect(() => {
     let cancelled = false
@@ -173,22 +169,10 @@ export function ScanHistoryPage({
   }, [])
 
   const filteredScans = useMemo(() => {
-    const normalizedQuery = deferredQuery.trim().toLowerCase()
-
     return scans.filter((scan) => {
-      const matchesStatus =
-        statusFilter === 'all' || (scan.status ?? 'completed') === statusFilter
-      if (!matchesStatus) {
-        return false
-      }
-
-      if (!normalizedQuery) {
-        return true
-      }
-
-      return matchesQuery(scan, normalizedQuery)
+      return statusFilter === 'all' || (scan.status ?? 'completed') === statusFilter
     })
-  }, [deferredQuery, scans, statusFilter])
+  }, [scans, statusFilter])
 
   const totalPages = Math.ceil(filteredScans.length / PAGE_SIZE)
   const pagedScans = filteredScans.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
@@ -260,7 +244,7 @@ export function ScanHistoryPage({
       totalScans === 0
         ? 0
         : Math.round((completedScans.length / totalScans) * 100)
-    const aiRuns = scans.filter((s) => (s as Record<string, unknown>).ai_used).length
+    const aiRuns = scans.filter((s) => (s as unknown as Record<string, unknown>).ai_used).length
 
     return {
       totalScans,

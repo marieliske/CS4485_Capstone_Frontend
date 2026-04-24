@@ -91,43 +91,6 @@ function formatScanPseudoName(scan: ScanRecord, fallbackIndex: number): string {
   return `Scan ${fallbackIndex + 1}`
 }
 
-function StatIcon({ type }: { type: 'folder' | 'search' | 'warning' | 'chart' }) {
-  if (type === 'folder') {
-    return (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <path d="M3.5 8h6l1.7 2H20v8a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2z" />
-      </svg>
-    )
-  }
-
-  if (type === 'search') {
-    return (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <circle cx="11" cy="11" r="5.5" />
-        <path d="m15 15 5 5" />
-      </svg>
-    )
-  }
-
-  if (type === 'warning') {
-    return (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <circle cx="12" cy="12" r="8" />
-        <path d="M12 8v5" />
-        <path d="M12 16h.01" />
-      </svg>
-    )
-  }
-
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <path d="M5 19V9" />
-      <path d="M10 19V5" />
-      <path d="M15 19v-7" />
-      <path d="M20 19v-4" />
-    </svg>
-  )
-}
 
 function RotViz({ pct, history, rotClass }: { pct: number; history: number[]; rotClass: string }) {
   const { settings } = useSettings()
