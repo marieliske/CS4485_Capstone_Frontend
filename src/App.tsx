@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import type { User } from 'firebase/auth'
 import { firebaseConfigured, firebaseMissingEnvKeys } from './firebase'
 import { DashboardPage } from './pages/DashboardPage'
 import { ProjectsPage } from './pages/ProjectsPage'
@@ -21,6 +22,71 @@ type PageKey =
   | 'configuration'
   | 'wf-user-settings'
   | 'scanHistory'
+
+const githubHandlePattern = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i
+
+function normalizeHandle(value: string | null | undefined): string | null {
+  const normalized = value?.trim().toLowerCase() ?? ''
+  return githubHandlePattern.test(normalized) ? normalized : null
+}
+
+function extractGitHubUsername(user: User): string | null {
+  const stored = normalizeHandle(localStorage.getItem('docrot_github_username'))
+  if (stored) return stored
+
+  const rawUser = user as unknown as {
+    reloadUserInfo?: { screenName?: unknown; screen_name?: unknown; login?: unknown }
+  }
+
+  const reloadScreenName = rawUser.reloadUserInfo?.screenName
+  if (typeof reloadScreenName === 'string') {
+    const parsed = normalizeHandle(reloadScreenName)
+    if (parsed) return parsed
+  }
+
+  const reloadSnakeScreenName = rawUser.reloadUserInfo?.screen_name
+  if (typeof reloadSnakeScreenName === 'string') {
+    const parsed = normalizeHandle(reloadSnakeScreenName)
+    if (parsed) return parsed
+  }
+
+  const reloadLogin = rawUser.reloadUserInfo?.login
+  if (typeof reloadLogin === 'string') {
+    const parsed = normalizeHandle(reloadLogin)
+    if (parsed) return parsed
+  }
+
+  const githubProviderInfo = user.providerData.find((p) => p.providerId === 'github.com')
+  const providerDisplayName = normalizeHandle(githubProviderInfo?.displayName)
+  if (providerDisplayName) return providerDisplayName
+
+  const email = user.email ?? ''
+  const noreplyMatch = email.match(/^\d+\+([a-z\d-]+)@users\.noreply\.github\.com$/i)
+  if (noreplyMatch?.[1]) {
+    const parsed = normalizeHandle(noreplyMatch[1])
+    if (parsed) return parsed
+  }
+
+  return null
+}
+
+async function resolveGitHubUsername(user: User): Promise<string | null> {
+  const extracted = extractGitHubUsername(user)
+  if (extracted) return extracted
+
+  const githubProviderInfo = user.providerData.find((p) => p.providerId === 'github.com')
+  const githubUid = githubProviderInfo?.uid ?? ''
+  if (!/^\d+$/.test(githubUid)) return null
+
+  try {
+    const response = await fetch(`https://api.github.com/user/${githubUid}`)
+    if (!response.ok) return null
+    const payload = (await response.json()) as { login?: unknown }
+    return typeof payload.login === 'string' ? normalizeHandle(payload.login) : null
+  } catch {
+    return null
+  }
+}
 
 function NavIcon({ children }: { children: ReactNode }) {
   return (
