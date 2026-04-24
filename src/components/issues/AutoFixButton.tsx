@@ -68,10 +68,12 @@ export function AutoFixButton({ issue }: AutoFixButtonProps) {
     }
 
     try {
+      // issue.id is "${scanId}:${firestoreDocId}" — strip the prefix to get the real flag doc ID
+      const flagId = issue.id.includes(':') ? issue.id.split(':').slice(1).join(':') : issue.id
       const response = await applyAutoFix({
         repoId: issue.repoId!,
         scanId: issue.scanId!,
-        flagId: issue.id,
+        flagId,
         userToken: token,
         dryRun,
       })
