@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { getFingerprintSummary, getScanIssues, getScans, type ScanRecord } from '../api/scans'
+import { getFingerprintSummary, getScans, type ScanRecord } from '../api/scans'
 import { useScanEvents } from '../hooks/useScanEvents'
 import { useSettings } from '../context/SettingsContext'
 
@@ -164,6 +164,20 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showAddRepoSteps, setShowAddRepoSteps] = useState(false)
+
+  const openAddRepoGuide = useCallback(() => {
+    setShowAddRepoSteps(true)
+  }, [])
+
+  const closeAddRepoGuide = useCallback(() => {
+    setShowAddRepoSteps(false)
+  }, [])
+
+  const continueToProjects = useCallback(() => {
+    setShowAddRepoSteps(false)
+    onOpenProjects?.()
+  }, [onOpenProjects])
 
   const loadDashboard = useCallback(async (showLoading = true) => {
     if (showLoading) {
@@ -177,15 +191,7 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
       ])
 
       const latestScanId = scanRows[0]?.id
-      let latestOpenIssueCount = 0
-
-      if (latestScanId) {
-        const latestIssues = await getScanIssues(latestScanId)
-        latestOpenIssueCount = latestIssues.filter((issue) => {
-          const status = (issue as Record<string, unknown>).status
-          return status !== 'closed'
-        }).length
-      }
+      const totalOpenIssues = scanRows.reduce((sum, scan) => sum + (scan.mismatch_count ?? 0), 0)
 
       const summaryObject = summary as Record<string, unknown>
       const fallbackIssueCount = pickNumber(summaryObject, ['open_issues', 'openIssues', 'issue_count', 'total_issues'])
@@ -193,7 +199,7 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
       const latestScanHealth = asFiniteNumber(scanRows[0]?.rot_score)
 
       setScans(scanRows)
-      setOpenIssues(latestOpenIssueCount || fallbackIssueCount || 0)
+      setOpenIssues(totalOpenIssues || fallbackIssueCount || 0)
       setHealthIndex(latestScanHealth ?? summaryHealth)
       setLastSeenId(parseScanId(latestScanId))
       setLastUpdatedAt(new Date())
@@ -336,7 +342,7 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 8v5l3 2"/><circle cx="12" cy="12" r="8"/></svg>
             Scan History
           </button>
-          <button type="button" className="btn btn-accent" onClick={onOpenProjects}>
+          <button type="button" className="btn btn-accent" onClick={openAddRepoGuide}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
             Add Repo
           </button>
@@ -409,7 +415,7 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
               </div>
               <div className="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 6l6 6-6 6"/></svg></div>
             </button>
-            <button className="qa-btn" type="button" onClick={onOpenProjects}>
+            <button className="qa-btn" type="button" onClick={openAddRepoGuide}>
               <div className="qa-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ width: 16, height: 16 }}>
                   <path d="M3.5 8h6l1.7 2H20v8a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2z"/>
@@ -529,6 +535,79 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
           </div>
         </div>
       </div>
+
+      {showAddRepoSteps ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Add repository steps"
+          onClick={closeAddRepoGuide}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.35)',
+            display: 'grid',
+            placeItems: 'center',
+            zIndex: 50,
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: 'min(760px, 100%)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--r-md)',
+              background: 'var(--bg-elev)',
+              boxShadow: 'var(--shadow-lg)',
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--border)' }}>
+              <div className="kicker" style={{ marginBottom: 6 }}>Repository onboarding</div>
+              <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 28, fontWeight: 400, lineHeight: 1.1 }}>
+                Add Repo Setup Steps
+              </h3>
+            </div>
+
+            <div style={{ padding: '16px 18px', display: 'grid', gap: 12 }}>
+              <p style={{ color: 'var(--ink-2)', fontSize: 13.5 }}>
+                Follow these steps to connect a repository and seed the first baseline scan.
+              </p>
+
+              <ol style={{ margin: 0, paddingLeft: 20, display: 'grid', gap: 10, color: 'var(--ink-2)', fontSize: 13.5 }}>
+                <li>
+                  In your terminal, run:
+                  <code
+                    style={{
+                      display: 'block',
+                      marginTop: 6,
+                      padding: '10px 12px',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--r-sm)',
+                      background: 'var(--bg-code)',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 12,
+                      color: 'var(--ink)',
+                    }}
+                  >
+                    npx github:SuchiiJain/CS4485_Capstone
+                  </code>
+                </li>
+                <li>Follow the prompts to map the code globs and roc file paths.</li>
+                <li>Make an initial commit to GitHub to configure a baseline scan.</li>
+              </ol>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '14px 18px', borderTop: '1px solid var(--border)' }}>
+              <button type="button" className="btn" onClick={closeAddRepoGuide}>Close</button>
+              <button type="button" className="btn btn-accent" onClick={continueToProjects}>
+                Continue To Projects
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

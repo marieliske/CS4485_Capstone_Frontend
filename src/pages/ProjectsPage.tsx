@@ -193,9 +193,7 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [sort, setSort] = useState('name')
-  const [showCreateForm, setShowCreateForm] = useState(false)
-  const [newProjectName, setNewProjectName] = useState('')
-  const [newRepository, setNewRepository] = useState('')
+  const [showAddRepoSteps, setShowAddRepoSteps] = useState(false)
   const [expandedProjectKey, setExpandedProjectKey] = useState<string | null>(null)
   const [expandedIssues, setExpandedIssues] = useState<Record<string, ScanIssueRecord[]>>({})
   const [expandedLoadingKey, setExpandedLoadingKey] = useState<string | null>(null)
@@ -243,7 +241,7 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
 
   useEffect(() => {
     const handleCreateProject = () => {
-      setShowCreateForm(true)
+      setShowAddRepoSteps(true)
     }
 
     window.addEventListener('projects:create', handleCreateProject)
@@ -296,31 +294,7 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
   const mostRottenRepo = [...projectRows].sort((a, b) => b.score - a.score)[0]
 
   const handleCreateProject = () => {
-    const trimmedName = newProjectName.trim()
-    const trimmedRepo = newRepository.trim()
-
-    if (!trimmedName || !trimmedRepo) {
-      window.alert('Please enter both a project name and repository path.')
-      return
-    }
-
-    const newProject: ProjectRow = {
-      name: trimmedName,
-      repository: trimmedRepo,
-      latestStatus: 'Untracked',
-      statusTone: 'untracked',
-      latestScanId: undefined,
-      latestMismatchCount: 0,
-      scanCount: 0,
-      score: 0,
-      lastUpdated: '',
-    }
-
-    setProjectRows((prev) => [newProject, ...prev])
-    setNewProjectName('')
-    setNewRepository('')
-    setShowCreateForm(false)
-    setError(null)
+    setShowAddRepoSteps(true)
   }
 
   const handleToggleExpand = async (project: ProjectRow) => {
@@ -365,43 +339,79 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
           <button
             type="button"
             className="btn btn-accent"
-            onClick={() => setShowCreateForm(true)}
+            onClick={handleCreateProject}
           >
-            + Add repository
+            + Add repo
           </button>
         </div>
       </div>
 
-      {showCreateForm ? (
-        <div className="card" style={{ marginBottom: 16, overflow: 'visible' }}>
-          <div className="card-head">
-            <h3>Add Repository</h3>
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              onClick={() => setShowCreateForm(false)}
-            >
-              Cancel
-            </button>
-          </div>
-          <div style={{ padding: 20, display: 'grid', gap: 12 }}>
-            <input
-              aria-label="Project name"
-              className="input"
-              placeholder="Project name"
-              value={newProjectName}
-              onChange={(event) => setNewProjectName(event.target.value)}
-            />
-            <input
-              aria-label="Repository path"
-              className="input"
-              placeholder="owner/repository"
-              value={newRepository}
-              onChange={(event) => setNewRepository(event.target.value)}
-            />
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button type="button" className="btn btn-accent" onClick={handleCreateProject}>
-                Save Project
+      {showAddRepoSteps ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Add repository steps"
+          onClick={() => setShowAddRepoSteps(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.35)',
+            display: 'grid',
+            placeItems: 'center',
+            zIndex: 50,
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: 'min(760px, 100%)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--r-md)',
+              background: 'var(--bg-elev)',
+              boxShadow: 'var(--shadow-lg)',
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--border)' }}>
+              <div className="kicker" style={{ marginBottom: 6 }}>Repository onboarding</div>
+              <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 28, fontWeight: 400, lineHeight: 1.1 }}>
+                Add Repo Setup Steps
+              </h3>
+            </div>
+
+            <div style={{ padding: '16px 18px', display: 'grid', gap: 12 }}>
+              <p style={{ color: 'var(--ink-2)', fontSize: 13.5 }}>
+                Follow these steps to connect a repository and seed the first baseline scan.
+              </p>
+
+              <ol style={{ margin: 0, paddingLeft: 20, display: 'grid', gap: 10, color: 'var(--ink-2)', fontSize: 13.5 }}>
+                <li>
+                  In your terminal, run:
+                  <code
+                    style={{
+                      display: 'block',
+                      marginTop: 6,
+                      padding: '10px 12px',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--r-sm)',
+                      background: 'var(--bg-code)',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 12,
+                      color: 'var(--ink)',
+                    }}
+                  >
+                    npx github:SuchiiJain/CS4485_Capstone
+                  </code>
+                </li>
+                <li>Follow the prompts to map the code globs and roc file paths.</li>
+                <li>Make an initial commit to GitHub to configure a baseline scan.</li>
+              </ol>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '14px 18px', borderTop: '1px solid var(--border)' }}>
+              <button type="button" className="btn" onClick={() => setShowAddRepoSteps(false)}>
+                Close
               </button>
             </div>
           </div>

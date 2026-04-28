@@ -4,6 +4,7 @@ interface IssueTableProps {
   issues: Issue[]
   onSelect: (issue: Issue) => void
   onClose?: (issueId: string) => void
+  onReopen?: (issueId: string) => void
   selectedId?: string | null
 }
 
@@ -17,7 +18,7 @@ function SeverityCell({ priority }: { priority: Issue['priority'] }) {
   )
 }
 
-export function IssueTable({ issues, onSelect, onClose, selectedId }: IssueTableProps) {
+export function IssueTable({ issues, onSelect, onClose, onReopen, selectedId }: IssueTableProps) {
   if (!issues.length) {
     return (
       <div className="empty">
@@ -81,6 +82,15 @@ export function IssueTable({ issues, onSelect, onClose, selectedId }: IssueTable
                     title="Mark as closed"
                   >
                     Close
+                  </button>
+                ) : issue.status === 'closed' && onReopen ? (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost"
+                    onClick={() => onReopen(issue.id)}
+                    title="Re-open issue"
+                  >
+                    Re-open
                   </button>
                 ) : null}
               </td>

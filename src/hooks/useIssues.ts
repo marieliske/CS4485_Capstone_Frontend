@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { getIssues, closeIssue as apiCloseIssue } from '../api/issues'
+import { getIssues, closeIssue as apiCloseIssue, reopenIssue as apiReopenIssue } from '../api/issues'
 import { getScans } from '../api/scans'
 import { measure } from '../utils/perf'
 import type { Issue, ScanReportSummary } from '../types/issue'
@@ -62,7 +62,7 @@ export function useIssues(scanId?: string | null) {
           return
         }
 
-        const selectedScan = scanId ? scans.find((scan) => scan.id === scanId) : scans[0]
+        const selectedScan = scanId ? scans.find((scan) => scan.id === scanId) : undefined
         const openLiveIssues = liveIssues.filter((issue) => issue.status === 'open')
         const highCount = openLiveIssues.filter((issue) => issue.priority === 'high').length
         const mediumCount = openLiveIssues.filter((issue) => issue.priority === 'medium').length
@@ -135,6 +135,26 @@ export function useIssues(scanId?: string | null) {
     }
   }, [issues])
 
+  const reopenIssue = useCallback(async (issueId: string) => {
+    const targetIssue = issues.find((issue) => issue.id === issueId)
+    const repoId = targetIssue?.repoId
+    const targetScanId = targetIssue?.scanId
+    if (!repoId || !targetScanId) return
+
+    const backendIssueId = issueId.includes(':') ? issueId.split(':').slice(1).join(':') : issueId
+
+    setIssues((prev) =>
+      prev.map((issue) => (issue.id === issueId ? { ...issue, status: 'open' as const } : issue)),
+    )
+    try {
+      await apiReopenIssue(repoId, targetScanId, backendIssueId)
+    } catch {
+      setIssues((prev) =>
+        prev.map((issue) => (issue.id === issueId ? { ...issue, status: 'closed' as const } : issue)),
+      )
+    }
+  }, [issues])
+
   return {
     issues,
     scanReport,
@@ -142,5 +162,6 @@ export function useIssues(scanId?: string | null) {
     error,
     openIssues,
     closeIssue,
+    reopenIssue,
   }
 }

@@ -34,6 +34,14 @@ function setCached<T>(key: string, data: T): void {
 
 export function clearCache(): void { cache.clear() }
 
+function invalidateCachedByPrefix(prefix: string): void {
+  for (const key of cache.keys()) {
+    if (key.startsWith(prefix)) {
+      cache.delete(key)
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // GitHub username filter — set at sign-in, used to filter repos
 // ---------------------------------------------------------------------------
@@ -125,6 +133,54 @@ function toScanRecord(scanId: string, data: DocumentData, repoId: string): ScanR
   }
 }
 
+function isIssueOpen(status: unknown): boolean {
+  return status !== 'closed' && status !== 'resolved' && status !== 'ignored'
+}
+
+function parseIssuePriority(priority: unknown): 'high' | 'medium' | 'low' {
+  if (priority === 'high' || priority === 'critical') return 'high'
+  if (priority === 'medium') return 'medium'
+  return 'low'
+}
+
+function applyLiveIssueMetrics(scan: ScanRecord, issues: DocumentData[]): ScanRecord {
+  const openIssues = issues.filter((issue) => isIssueOpen(issue['status']))
+  const highCount = openIssues.filter((issue) => parseIssuePriority(issue['priority'] ?? issue['severity']) === 'high').length
+  const mediumCount = openIssues.filter((issue) => parseIssuePriority(issue['priority'] ?? issue['severity']) === 'medium').length
+  const lowCount = openIssues.filter((issue) => parseIssuePriority(issue['priority'] ?? issue['severity']) === 'low').length
+
+  const baseTotal = typeof scan.total_issues === 'number' && scan.total_issues > 0
+    ? scan.total_issues
+    : issues.length
+  const baseRot = typeof scan.rot_score === 'number' && Number.isFinite(scan.rot_score)
+    ? scan.rot_score
+    : 0
+  const rotRatio = baseTotal > 0 ? openIssues.length / baseTotal : 0
+  const derivedRot = Math.max(0, Math.min(100, Math.round(baseRot * rotRatio)))
+
+  return {
+    ...scan,
+    mismatch_count: openIssues.length,
+    high_count: highCount,
+    medium_count: mediumCount,
+    low_count: lowCount,
+    rot_score: derivedRot,
+    total_issues: baseTotal,
+  }
+}
+
+async function getIssuesForScanInRepo(repoId: string, scanId: string): Promise<DocumentData[]> {
+  const key = `issues:${scanId}`
+  const cached = getCached<DocumentData[]>(key)
+  if (cached) return cached
+
+  const issuesRef = collection(db, 'repos', repoId, 'scan_runs', scanId, 'flags')
+  const snap = await measure(`getIssuesForScan:${repoId}`, () => getDocs(issuesRef))
+  const result = snap.docs.map((d) => ({ id: d.id, _repoId: repoId, ...d.data() }))
+  setCached(key, result)
+  return result
+}
+
 export async function getAllScanRuns(): Promise<ScanRecord[]> {
   const key = `allScanRuns:${_githubUsername ?? ''}`
   const cached = getCached<ScanRecord[]>(key)
@@ -137,7 +193,13 @@ export async function getAllScanRuns(): Promise<ScanRecord[]> {
       const scansSnap = await measure(`getAllScanRuns:${repo.id}`, () =>
         getDocs(query(scansRef, orderBy('scanned_at', 'desc')))
       )
-      return scansSnap.docs.map((scanDoc) => toScanRecord(scanDoc.id, scanDoc.data(), repo.id))
+      const baseScans = scansSnap.docs.map((scanDoc) => toScanRecord(scanDoc.id, scanDoc.data(), repo.id))
+      return Promise.all(
+        baseScans.map(async (scan) => {
+          const issues = await getIssuesForScanInRepo(repo.id, scan.id)
+          return applyLiveIssueMetrics(scan, issues)
+        }),
+      )
     })
   )
 
@@ -152,7 +214,13 @@ export async function getScanRunsForRepo(repoId: string): Promise<ScanRecord[]> 
   if (cached) return cached
   const scansRef = collection(db, 'repos', repoId, 'scan_runs')
   const scansSnap = await getDocs(query(scansRef, orderBy('scanned_at', 'desc')))
-  const result = scansSnap.docs.map((d) => toScanRecord(d.id, d.data(), repoId))
+  const baseScans = scansSnap.docs.map((d) => toScanRecord(d.id, d.data(), repoId))
+  const result = await Promise.all(
+    baseScans.map(async (scan) => {
+      const issues = await getIssuesForScanInRepo(repoId, scan.id)
+      return applyLiveIssueMetrics(scan, issues)
+    }),
+  )
   setCached(key, result)
   return result
 }
@@ -163,7 +231,9 @@ export async function getScanRunById(scanId: string): Promise<ScanRecord | null>
     const scanRef = doc(db, 'repos', repo.id, 'scan_runs', scanId)
     const snap = await getDoc(scanRef)
     if (snap.exists()) {
-      return toScanRecord(snap.id, snap.data(), repo.id)
+      const baseScan = toScanRecord(snap.id, snap.data(), repo.id)
+      const issues = await getIssuesForScanInRepo(repo.id, scanId)
+      return applyLiveIssueMetrics(baseScan, issues)
     }
   }
   return null
@@ -179,14 +249,10 @@ export async function getIssuesForScan(scanId: string): Promise<DocumentData[]> 
   if (cached) return cached
   const repos = await getRepos()
   for (const repo of repos) {
-    const issuesRef = collection(db, 'repos', repo.id, 'scan_runs', scanId, 'flags')
-    const snap = await measure(`getIssuesForScan:${repo.id}`, () => getDocs(issuesRef))
-    if (!snap.empty) {
-      const result = snap.docs.map((d) => ({ id: d.id, _repoId: repo.id, ...d.data() }))
-      setCached(key, result)
-      return result
-    }
+    const result = await getIssuesForScanInRepo(repo.id, scanId)
+    if (result.length > 0) return result
   }
+  setCached(key, [])
   return []
 }
 
@@ -198,6 +264,20 @@ export async function closeIssue(repoId: string, scanId: string, issueId: string
   if (cached) {
     setCached(key, cached.map((issue) => issue['id'] === issueId ? { ...issue, status: 'closed' } : issue))
   }
+  invalidateCachedByPrefix('allScanRuns:')
+  invalidateCachedByPrefix('scanRuns:')
+}
+
+export async function reopenIssue(repoId: string, scanId: string, issueId: string): Promise<void> {
+  const flagRef = doc(db, 'repos', repoId, 'scan_runs', scanId, 'flags', issueId)
+  await updateDoc(flagRef, { status: 'open' })
+  const key = `issues:${scanId}`
+  const cached = getCached<DocumentData[]>(key)
+  if (cached) {
+    setCached(key, cached.map((issue) => issue['id'] === issueId ? { ...issue, status: 'open' } : issue))
+  }
+  invalidateCachedByPrefix('allScanRuns:')
+  invalidateCachedByPrefix('scanRuns:')
 }
 
 // ---------------------------------------------------------------------------
