@@ -1,7 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;1,9..144,400&family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@400;450;500;600&family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:ital,wght@0,400;1,400&display=swap');
 
 * { box-sizing: border-box; }
-html, body, #root { height: 100%; margin: 0; }
+html, body { min-height: 100%; margin: 0; }
+#root { min-height: 100vh; height: auto; }
 
 svg:not([width]):not([height]) { width: 1em; height: 1em; flex-shrink: 0; }
 .rot-gauge svg { width: 100% !important; height: 100% !important; }

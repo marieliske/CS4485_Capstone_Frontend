@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { collection, onSnapshot } from 'firebase/firestore'
-import { db } from '../firebase'
+import { db, localPreviewMode } from '../firebase'
 
 /**
  * Listens to the top-level `repos` collection for any changes.
@@ -11,7 +11,7 @@ export function useScanEvents(onScanAdded: () => void, _initialLastId = 0, enabl
   const [isConnected, setIsConnected] = useState(false)
 
   useEffect(() => {
-    if (!enabled) return
+    if (localPreviewMode || !enabled) return
 
     let firstSnapshot = true
 

@@ -7,7 +7,15 @@ import {
   signOut,
   type User,
 } from 'firebase/auth'
-import { auth, githubProvider } from '../firebase'
+import { auth, githubProvider, localPreviewMode } from '../firebase'
+
+const localPreviewUser = {
+  uid: 'local-preview-user',
+  displayName: 'Local preview',
+  email: 'local-preview@localhost',
+  photoURL: '',
+  providerData: [],
+} as unknown as User
 
 interface AuthContextValue {
   user: User | null
@@ -28,10 +36,16 @@ const AuthContext = createContext<AuthContextValue>({
 })
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState<User | null>(localPreviewMode ? localPreviewUser : null)
+  const [loading, setLoading] = useState(!localPreviewMode)
 
   useEffect(() => {
+    if (localPreviewMode) {
+      setUser(localPreviewUser)
+      setLoading(false)
+      return
+    }
+
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser)
       setLoading(false)
@@ -40,18 +54,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   async function signInWithEmail(email: string, password: string) {
+    if (localPreviewMode) return
     await signInWithEmailAndPassword(auth, email, password)
   }
 
   async function signUpWithEmail(email: string, password: string) {
+    if (localPreviewMode) return
     await createUserWithEmailAndPassword(auth, email, password)
   }
 
   async function signInWithGitHub() {
+    if (localPreviewMode) return
     await signInWithPopup(auth, githubProvider)
   }
 
   async function logout() {
+    if (localPreviewMode) return
     await signOut(auth)
   }
 

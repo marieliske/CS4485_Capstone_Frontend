@@ -6,6 +6,7 @@ import { useIssues } from '../hooks/useIssues'
 interface IssuesPageProps {
   onOpenHistory?: () => void
   searchQuery?: string
+  scanId?: string | null
 }
 
 const PAGE_SIZE = 25
@@ -23,8 +24,8 @@ const STATUS_CHIPS: Array<{ key: string; label: string }> = [
   { key: 'closed', label: 'Closed' },
 ]
 
-export function IssuesPage({ onOpenHistory, searchQuery }: IssuesPageProps) {
-  const { issues, scanReport, loading, error, openIssues, closeIssue } = useIssues()
+export function IssuesPage({ onOpenHistory, searchQuery, scanId }: IssuesPageProps) {
+  const { issues, scanReport, loading, error, openIssues, closeIssue, reopenIssue } = useIssues(scanId)
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('open')
   const [sortBy, setSortBy] = useState<'priority' | 'date' | 'repo'>('date')
@@ -221,6 +222,7 @@ export function IssuesPage({ onOpenHistory, searchQuery }: IssuesPageProps) {
                 selectedId={selectedIssue?.id ?? null}
                 onSelect={(issue) => setSelectedIssueId(issue.id)}
                 onClose={closeIssue}
+                onReopen={reopenIssue}
               />
               {totalPages > 1 ? (
                 <div className="table-pagination">

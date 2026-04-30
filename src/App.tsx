@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import type { User } from 'firebase/auth'
-import { firebaseConfigured, firebaseMissingEnvKeys } from './firebase'
+import { firebaseConfigured, firebaseMissingEnvKeys, localPreviewMode } from './firebase'
 import { DashboardPage } from './pages/DashboardPage'
 import { ProjectsPage } from './pages/ProjectsPage'
 import { IssuesPage } from './pages/IssuesPage'
@@ -98,15 +98,6 @@ function NavIcon({ children }: { children: ReactNode }) {
   )
 }
 
-function SearchIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <circle cx="11" cy="11" r="5.5" />
-      <path d="m15 15 5 5" />
-    </svg>
-  )
-}
-
 function BellIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -121,11 +112,13 @@ function AppShell() {
 
   const [activePage, setActivePage] = useState<PageKey>('dashboard')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [topbarQuery, setTopbarQuery] = useState('')
   const [focusedScanId, setFocusedScanId] = useState<string | null>(null)
   const [tweaksOpen, setTweaksOpen] = useState(false)
 
   const navigateToPage = (page: PageKey) => {
+    if (page === 'issues') {
+      setFocusedScanId(null)
+    }
     setActivePage(page)
   }
 
@@ -134,8 +127,8 @@ function AppShell() {
     setActivePage('scanHistory')
   }
 
-  const openIssues = () => {
-    setFocusedScanId(null)
+  const openIssues = (scanId?: string) => {
+    setFocusedScanId(scanId ?? null)
     setActivePage('issues')
   }
 
@@ -211,7 +204,7 @@ function AppShell() {
       onOpenHistory={openHistory}
       onOpenIssues={() => openIssues()}
       onOpenProjects={openProjects}
-      userName={user?.displayName ?? user?.email ?? 'User'}
+      userName={user?.displayName ?? user?.email ?? (localPreviewMode ? 'Local preview' : 'User')}
     />
   )
 
@@ -224,6 +217,7 @@ function AppShell() {
     pageTitle = 'Issues'
     pageContent = (
       <IssuesPage
+        scanId={focusedScanId}
         onOpenHistory={() => openHistory(focusedScanId ?? undefined)}
       />
     )
@@ -234,7 +228,7 @@ function AppShell() {
     pageContent = (
       <ScanHistoryPage
         initialSelectedScanId={focusedScanId}
-        onOpenIssuesForScan={() => openIssues()}
+        onOpenIssuesForScan={(scanId) => openIssues(scanId)}
       />
     )
   }
@@ -248,43 +242,6 @@ function AppShell() {
     pageTitle = 'User Settings'
     pageContent = <UserSettingsWireframePage />
   }
-
-  const topbarPrimaryAction = useMemo(() => {
-    if (activePage === 'dashboard') {
-      return {
-        label: '+ Create New Project',
-        className: 'create-project-btn',
-        onClick: () => {
-          setActivePage('projects')
-          window.setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('projects:create'))
-          }, 0)
-        },
-      }
-    }
-
-    if (activePage === 'projects') {
-      return {
-        label: '+ Create New Project',
-        className: 'create-project-btn',
-        onClick: () => {
-          window.dispatchEvent(new CustomEvent('projects:create'))
-        },
-      }
-    }
-
-    if (activePage === 'configuration') {
-      return {
-        label: 'Apply Changes',
-        className: 'apply-changes-btn',
-        onClick: () => {
-          window.dispatchEvent(new CustomEvent('configuration:apply'))
-        },
-      }
-    }
-
-    return null
-  }, [activePage])
 
   return (
     <div className="shell" data-sidebar={sidebarCollapsed ? 'collapsed' : undefined}>
@@ -387,16 +344,26 @@ function AppShell() {
 
           <div className="topbar-spacer" />
 
-          <div className="topbar-search">
-            <SearchIcon />
-            <input
-              type="text"
-              placeholder={`Search ${pageTitle.toLowerCase()}…`}
-              value={topbarQuery}
-              onChange={(event) => setTopbarQuery(event.target.value)}
-              aria-label={`Search ${pageTitle}`}
-            />
-          </div>
+          {localPreviewMode ? (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '5px 10px',
+                borderRadius: 999,
+                border: '1px solid color-mix(in oklab, var(--accent) 35%, transparent)',
+                background: 'color-mix(in oklab, var(--accent) 12%, transparent)',
+                color: 'var(--ink-2)',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+              }}
+            >
+              Local preview
+            </span>
+          ) : null}
 
           <button type="button" className="icon-btn" aria-label="Notifications">
             <BellIcon />
@@ -414,15 +381,6 @@ function AppShell() {
             </svg>
           </button>
 
-          {topbarPrimaryAction ? (
-            <button
-              type="button"
-              className="btn btn-accent"
-              onClick={topbarPrimaryAction.onClick}
-            >
-              {topbarPrimaryAction.label}
-            </button>
-          ) : null}
         </header>
 
         <div className="page-viewport">{pageContent}</div>
@@ -465,7 +423,7 @@ function App() {
     }
   }, [user])
 
-  if (!firebaseConfigured) {
+  if (!firebaseConfigured && !localPreviewMode) {
     return (
       <div
         style={{
@@ -502,7 +460,7 @@ function App() {
 
   if (loading) return null
 
-  return user ? (
+  return user || localPreviewMode ? (
     <AppShell />
   ) : (
     <AuthPage

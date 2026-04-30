@@ -1,6 +1,6 @@
 import { asObject } from './client'
 import { getScans, getScanIssues } from './scans'
-import { closeIssue as firestoreCloseIssue } from './firestore'
+import { closeIssue as firestoreCloseIssue, reopenIssue as firestoreReopenIssue } from './firestore'
 import type { ScanRecord } from './scans'
 import type { Issue } from '../types/issue'
 
@@ -157,20 +157,30 @@ export async function closeIssue(repoId: string, scanId: string, issueId: string
   await firestoreCloseIssue(repoId, scanId, issueId)
 }
 
+export async function reopenIssue(repoId: string, scanId: string, issueId: string): Promise<void> {
+  await firestoreReopenIssue(repoId, scanId, issueId)
+}
+
 export async function getIssues(scanId?: string) {
   const scans = await getScans()
   if (scans.length === 0) {
     return []
   }
 
-  const targetScan = scanId
-    ? scans.find((scan) => scan.id === scanId)
-    : scans[0]
+  const targetScans = scanId
+    ? scans.filter((scan) => scan.id === scanId)
+    : scans
 
-  if (!targetScan) {
+  if (targetScans.length === 0) {
     return []
   }
 
-  const rawIssues = await getScanIssues(targetScan.id)
-  return rawIssues.map((issue, index) => normalizeIssue(issue, index, targetScan))
+  const issueRows = await Promise.all(
+    targetScans.map(async (scan) => {
+      const rawIssues = await getScanIssues(scan.id)
+      return rawIssues.map((issue, index) => normalizeIssue(issue, index, scan))
+    }),
+  )
+
+  return issueRows.flat()
 }
