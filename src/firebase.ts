@@ -37,6 +37,7 @@ function sanitizeAuthDomain(authDomain: string | undefined, projectId: string | 
 }
 
 export const firebaseConfigured = firebaseMissingEnvKeys.length === 0
+export const localPreviewMode = !firebaseConfigured && import.meta.env.DEV
 
 const resolvedAuthDomain = sanitizeAuthDomain(firebaseEnv.authDomain, firebaseEnv.projectId)
 

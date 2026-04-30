@@ -8,8 +8,18 @@ import {
   updateDoc,
   type DocumentData,
 } from 'firebase/firestore'
-import { db } from '../firebase'
+import { db, localPreviewMode } from '../firebase'
 import { measure } from '../utils/perf'
+import {
+  getPreviewBaselinesForRepo,
+  getPreviewIssuesForScan,
+  getPreviewRepoById,
+  getPreviewRepos,
+  getPreviewScanById,
+  getPreviewScansForRepo,
+  getPreviewSuggestionsForScan,
+  setPreviewIssueStatus,
+} from './localPreviewData'
 import type { ScanRecord } from './scans'
 
 // ---------------------------------------------------------------------------
@@ -97,6 +107,11 @@ export async function getRepos(): Promise<RepoRecord[]> {
   const key = `repos:${_githubUsername ?? ''}`
   const cached = getCached<RepoRecord[]>(key)
   if (cached) return cached
+  if (localPreviewMode) {
+    const result = getPreviewRepos().filter(belongsToUser)
+    setCached(key, result)
+    return result
+  }
   const snapshot = await measure('getRepos', () => getDocs(collection(db, 'repos')))
   const result = snapshot.docs.map((d) => toRepoRecord(d.id, d.data())).filter(belongsToUser)
   setCached(key, result)
@@ -104,6 +119,13 @@ export async function getRepos(): Promise<RepoRecord[]> {
 }
 
 export async function getRepoById(repoId: string): Promise<RepoRecord | null> {
+  if (localPreviewMode) {
+    const record = getPreviewRepoById(repoId)
+    if (!record) return null
+    if (!belongsToUser(record as RepoRecord)) return null
+    return record as RepoRecord
+  }
+
   const snap = await getDoc(doc(db, 'repos', repoId))
   if (!snap.exists()) return null
   const record = toRepoRecord(snap.id, snap.data())
@@ -174,6 +196,12 @@ async function getIssuesForScanInRepo(repoId: string, scanId: string): Promise<D
   const cached = getCached<DocumentData[]>(key)
   if (cached) return cached
 
+  if (localPreviewMode) {
+    const result = getPreviewIssuesForScan(repoId, scanId)
+    setCached(key, result)
+    return result
+  }
+
   const issuesRef = collection(db, 'repos', repoId, 'scan_runs', scanId, 'flags')
   const snap = await measure(`getIssuesForScan:${repoId}`, () => getDocs(issuesRef))
   const result = snap.docs.map((d) => ({ id: d.id, _repoId: repoId, ...d.data() }))
@@ -185,6 +213,18 @@ export async function getAllScanRuns(): Promise<ScanRecord[]> {
   const key = `allScanRuns:${_githubUsername ?? ''}`
   const cached = getCached<ScanRecord[]>(key)
   if (cached) return cached
+
+  if (localPreviewMode) {
+    const repos = await getRepos()
+    const result = repos
+      .flatMap((repo) => {
+        const baseScans = getPreviewScansForRepo(repo.id)
+        return baseScans.map((scan) => applyLiveIssueMetrics(scan, getPreviewIssuesForScan(repo.id, scan.id)))
+      })
+      .sort((a, b) => Date.parse(b.created_at ?? '') - Date.parse(a.created_at ?? ''))
+    setCached(key, result)
+    return result
+  }
 
   const repos = await getRepos()
   const perRepo = await Promise.all(
@@ -212,6 +252,13 @@ export async function getScanRunsForRepo(repoId: string): Promise<ScanRecord[]> 
   const key = `scanRuns:${repoId}`
   const cached = getCached<ScanRecord[]>(key)
   if (cached) return cached
+  if (localPreviewMode) {
+    const result = getPreviewScansForRepo(repoId).map((scan) =>
+      applyLiveIssueMetrics(scan, getPreviewIssuesForScan(repoId, scan.id)),
+    )
+    setCached(key, result)
+    return result
+  }
   const scansRef = collection(db, 'repos', repoId, 'scan_runs')
   const scansSnap = await getDocs(query(scansRef, orderBy('scanned_at', 'desc')))
   const baseScans = scansSnap.docs.map((d) => toScanRecord(d.id, d.data(), repoId))
@@ -226,6 +273,12 @@ export async function getScanRunsForRepo(repoId: string): Promise<ScanRecord[]> 
 }
 
 export async function getScanRunById(scanId: string): Promise<ScanRecord | null> {
+  if (localPreviewMode) {
+    const preview = getPreviewScanById(scanId)
+    if (!preview) return null
+    return applyLiveIssueMetrics(preview.scan as ScanRecord, getPreviewIssuesForScan(preview.repoId, scanId))
+  }
+
   const repos = await getRepos()
   for (const repo of repos) {
     const scanRef = doc(db, 'repos', repo.id, 'scan_runs', scanId)
@@ -247,6 +300,20 @@ export async function getIssuesForScan(scanId: string): Promise<DocumentData[]> 
   const key = `issues:${scanId}`
   const cached = getCached<DocumentData[]>(key)
   if (cached) return cached
+
+  if (localPreviewMode) {
+    const repos = await getRepos()
+    for (const repo of repos) {
+      const result = getPreviewIssuesForScan(repo.id, scanId)
+      if (result.length > 0) {
+        setCached(key, result)
+        return result
+      }
+    }
+    setCached(key, [])
+    return []
+  }
+
   const repos = await getRepos()
   for (const repo of repos) {
     const result = await getIssuesForScanInRepo(repo.id, scanId)
@@ -257,6 +324,18 @@ export async function getIssuesForScan(scanId: string): Promise<DocumentData[]> 
 }
 
 export async function closeIssue(repoId: string, scanId: string, issueId: string): Promise<void> {
+  if (localPreviewMode) {
+    setPreviewIssueStatus(repoId, scanId, issueId, 'closed')
+    const key = `issues:${scanId}`
+    const cached = getCached<DocumentData[]>(key)
+    if (cached) {
+      setCached(key, cached.map((issue) => issue['id'] === issueId ? { ...issue, status: 'closed' } : issue))
+    }
+    invalidateCachedByPrefix('allScanRuns:')
+    invalidateCachedByPrefix('scanRuns:')
+    return
+  }
+
   const flagRef = doc(db, 'repos', repoId, 'scan_runs', scanId, 'flags', issueId)
   await updateDoc(flagRef, { status: 'closed' })
   const key = `issues:${scanId}`
@@ -269,6 +348,18 @@ export async function closeIssue(repoId: string, scanId: string, issueId: string
 }
 
 export async function reopenIssue(repoId: string, scanId: string, issueId: string): Promise<void> {
+  if (localPreviewMode) {
+    setPreviewIssueStatus(repoId, scanId, issueId, 'open')
+    const key = `issues:${scanId}`
+    const cached = getCached<DocumentData[]>(key)
+    if (cached) {
+      setCached(key, cached.map((issue) => issue['id'] === issueId ? { ...issue, status: 'open' } : issue))
+    }
+    invalidateCachedByPrefix('allScanRuns:')
+    invalidateCachedByPrefix('scanRuns:')
+    return
+  }
+
   const flagRef = doc(db, 'repos', repoId, 'scan_runs', scanId, 'flags', issueId)
   await updateDoc(flagRef, { status: 'open' })
   const key = `issues:${scanId}`
@@ -293,6 +384,17 @@ export interface AISuggestionDoc {
 }
 
 export async function getAISuggestionsForScan(scanId: string): Promise<AISuggestionDoc[]> {
+  if (localPreviewMode) {
+    const repos = await getRepos()
+    for (const repo of repos) {
+      const result = getPreviewSuggestionsForScan(repo.id, scanId)
+      if (result.length > 0) {
+        return result as AISuggestionDoc[]
+      }
+    }
+    return []
+  }
+
   const repos = await getRepos()
   for (const repo of repos) {
     const ref = collection(db, 'repos', repo.id, 'scan_runs', scanId, 'ai_suggestions')
@@ -318,6 +420,10 @@ export async function getAISuggestionsForScan(scanId: string): Promise<AISuggest
 // ---------------------------------------------------------------------------
 
 export async function getFingerprintBaselines(repoId: string): Promise<DocumentData[]> {
+  if (localPreviewMode) {
+    return getPreviewBaselinesForRepo(repoId)
+  }
+
   const ref = collection(db, 'repos', repoId, 'fingerprint_baselines')
   const snap = await getDocs(ref)
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }))

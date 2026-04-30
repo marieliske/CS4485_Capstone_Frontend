@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth'
-import { auth } from '../firebase'
+import { useAuth } from '../auth/AuthContext'
+import { localPreviewMode } from '../firebase'
 import { useSettings, type AccentSetting, type DensitySetting, type FontSetting, type ThemeSetting, type VizSetting } from '../context/SettingsContext'
 
 type SettingsSection = 'profile' | 'appearance' | 'notifications' | 'tokens' | 'billing'
@@ -25,7 +26,7 @@ const NAV_ITEMS: { key: SettingsSection; label: string }[] = [
 ]
 
 export function UserSettingsWireframePage() {
-  const user = auth.currentUser
+  const { user } = useAuth()
   const { settings, setTheme, setAccent, setDensity, setViz, setFont } = useSettings()
 
   const initials = (user?.displayName ?? user?.email ?? 'U')
@@ -69,6 +70,10 @@ export function UserSettingsWireframePage() {
 
   async function handleSaveProfile() {
     if (!user) return
+    if (localPreviewMode) {
+      setProfileMsg('Profile editing is disabled in local preview mode.')
+      return
+    }
     setSavingProfile(true)
     try {
       await updateProfile(user, { displayName })
@@ -82,6 +87,10 @@ export function UserSettingsWireframePage() {
 
   async function handleChangePassword() {
     if (!user || !user.email) return
+    if (localPreviewMode) {
+      setPasswordMsg('Password changes are disabled in local preview mode.')
+      return
+    }
     setPasswordMsg(null)
     try {
       const credential = EmailAuthProvider.credential(user.email, currentPassword)
@@ -137,7 +146,7 @@ export function UserSettingsWireframePage() {
               {user?.email ?? ''}
             </div>
             <span className="pill" style={{ marginTop: 8, fontSize: 10, display: 'inline-block' }}>
-              {user?.providerData[0]?.providerId === 'github.com' ? 'GitHub Auth' : 'Email Auth'}
+              {localPreviewMode ? 'Local preview' : user?.providerData[0]?.providerId === 'github.com' ? 'GitHub Auth' : 'Email Auth'}
             </span>
           </div>
 
@@ -242,7 +251,14 @@ export function UserSettingsWireframePage() {
               <div className="card">
                 <div className="card-head"><h3>Security</h3></div>
                 <div className="kv-list">
-                  {isEmailUser ? (
+                  {localPreviewMode ? (
+                    <div className="kv-row" style={{ display: 'block', padding: '14px 18px' }}>
+                      <strong style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>Local preview mode</strong>
+                      <p style={{ fontSize: 12, color: 'var(--ink-3)', margin: 0 }}>
+                        Firebase profile actions are disabled while the branch runs without env vars.
+                      </p>
+                    </div>
+                  ) : isEmailUser ? (
                     <div className="kv-row" style={{ display: 'block', padding: '14px 18px' }}>
                       <strong style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>Change password</strong>
                       {changingPassword ? (

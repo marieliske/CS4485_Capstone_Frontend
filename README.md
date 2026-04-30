@@ -213,6 +213,14 @@ VITE_SCAN_EVENTS_PATH=/events/scans
 
 ---
 
+## Quick Local Preview (no Firebase)
+
+If you just want to browse the UI without configuring Firebase, skip the `.env` step and run `npm run dev`. The app boots in **local preview mode** with sample repos, scans, and issues — useful for reviewing PRs. Sign-in, profile edits, and auto-fix are stubbed out.
+
+Production builds (`npm run build`) still require all `VITE_FIREBASE_*` variables; a deployed build with missing variables shows an explicit error screen rather than falling back to preview data.
+
+---
+
 ## AI Integration
 
 The backend uses **Groq (llama-3.3-70b-versatile)** to generate documentation fix suggestions for flagged issues.
