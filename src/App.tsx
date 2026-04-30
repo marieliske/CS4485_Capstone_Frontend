@@ -12,6 +12,7 @@ import { UserSettingsWireframePage } from './pages/UserSettingsWireframePage'
 import { setGithubUsernameFilter } from './api/firestore'
 import { SettingsProvider } from './context/SettingsContext'
 import { TweaksPanel } from './components/TweaksPanel'
+import { ErrorBoundary } from './components/ErrorBoundary'
 
 import './App.css'
 
@@ -383,7 +384,9 @@ function AppShell() {
 
         </header>
 
-        <div className="page-viewport">{pageContent}</div>
+        <ErrorBoundary key={activePage}>
+          <div className="page-viewport">{pageContent}</div>
+        </ErrorBoundary>
       </main>
 
       <TweaksPanel open={tweaksOpen} onClose={() => setTweaksOpen(false)} />

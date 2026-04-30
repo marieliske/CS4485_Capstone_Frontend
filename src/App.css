@@ -111,10 +111,8 @@
   border-right: 0;
   display: flex;
   flex-direction: column;
-  align-self: stretch;
-  min-height: 100%;
-  height: auto;
-  overflow: visible;
+  height: 100%;
+  overflow-y: auto;
   position: relative;
   z-index: 1;
 }
