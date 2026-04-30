@@ -1,3 +1,5 @@
+import { localPreviewMode } from '../firebase'
+
 /**
  * Auto-fix API client — calls the `applyFix` Cloud Function to open a
  * PR on the user's repo that applies a deterministic doc patch.
@@ -41,6 +43,20 @@ export class AutoFixError extends Error {
 }
 
 export async function applyAutoFix(req: ApplyFixRequest): Promise<ApplyFixResponse> {
+  if (localPreviewMode) {
+    return {
+      success: true,
+      dry_run: req.dryRun === true,
+      doc_path: 'docs/local-preview.md',
+      summary: 'Local preview mode bypassed the cloud function.',
+      todo_notes: [
+        'Review the suggested documentation change manually.',
+        'Use the live branch when you want to exercise Firebase and the backend.',
+      ],
+      branch: req.baseBranch ?? 'cleanup-marie',
+    }
+  }
+
   if (!FUNCTION_URL) {
     throw new AutoFixError(
       'VITE_APPLY_FIX_URL is not configured. Set it to the applyFix Cloud Function URL.',

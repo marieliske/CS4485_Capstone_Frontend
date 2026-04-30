@@ -12,10 +12,10 @@ service cloud.firestore {
 
         match /flags/{flagId} {
           allow read: if request.auth != null;
-          // Only allow updating status to 'closed' — no other field changes
+          // Only allow updating status field to supported states — no other field changes
           allow update: if request.auth != null
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
-            && request.resource.data.status == 'closed';
+            && request.resource.data.status in ['open', 'closed'];
           allow create, delete: if false;
         }
 
