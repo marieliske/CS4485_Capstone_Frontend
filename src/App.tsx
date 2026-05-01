@@ -99,14 +99,6 @@ function NavIcon({ children }: { children: ReactNode }) {
   )
 }
 
-function BellIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <path d="M6.5 9a5.5 5.5 0 1 1 11 0c0 5.5 2 6.5 2 6.5h-15S6.5 14.5 6.5 9Z" />
-      <path d="M10 19a2 2 0 0 0 4 0" />
-    </svg>
-  )
-}
 
 function AppShell() {
   const { user, logout } = useAuth()
@@ -365,10 +357,6 @@ function AppShell() {
               Local preview
             </span>
           ) : null}
-
-          <button type="button" className="icon-btn" aria-label="Notifications">
-            <BellIcon />
-          </button>
 
           <button
             type="button"

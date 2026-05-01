@@ -59,6 +59,9 @@ export function ConfigurationPage() {
   const [mappings, setMappings] = useState<MappingRow[]>(initialMappings)
   const [threshold, setThreshold] = useState(85)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState({ glob: '', doc: '' })
+  const [saved, setSaved] = useState(false)
 
   const totalPatterns = mappings.length
   const activePatterns = useMemo(
@@ -85,20 +88,19 @@ export function ConfigurationPage() {
   const handleEditPattern = (id: string) => {
     const row = mappings.find((item) => item.id === id)
     if (!row) return
+    setEditDraft({ glob: row.glob, doc: row.doc })
+    setEditingId(id)
+    setOpenMenuId(null)
+  }
 
-    const nextGlob = window.prompt('Edit glob pattern', row.glob)
-    if (nextGlob === null) return
-
-    const nextDoc = window.prompt('Edit documentation file', row.doc)
-    if (nextDoc === null) return
-
+  const handleSaveEdit = (id: string) => {
     setMappings((prev) =>
       prev.map((item) =>
         item.id === id
           ? {
               ...item,
-              glob: nextGlob.trim() || item.glob,
-              doc: nextDoc.trim() || item.doc,
+              glob: editDraft.glob.trim() || item.glob,
+              doc: editDraft.doc.trim() || item.doc,
               synced: 'Just now',
               status: item.tone === 'disabled' ? 'Disabled' : 'Pending',
               tone: item.tone === 'disabled' ? 'disabled' : 'pending',
@@ -106,8 +108,7 @@ export function ConfigurationPage() {
           : item,
       ),
     )
-
-    setOpenMenuId(null)
+    setEditingId(null)
   }
 
   const handleTogglePattern = (id: string) => {
@@ -135,9 +136,8 @@ export function ConfigurationPage() {
   }
 
   const handleApplyChanges = () => {
-    window.alert(
-      `Configuration saved.\n\nPatterns: ${mappings.length}\nActive: ${activePatterns}\nThreshold: ${threshold}%`,
-    )
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
   }
 
   useEffect(() => {
@@ -168,7 +168,7 @@ export function ConfigurationPage() {
             + Add Pattern
           </button>
           <button type="button" className="btn btn-accent" onClick={handleApplyChanges}>
-            Apply Changes
+            {saved ? '✓ Saved' : 'Apply Changes'}
           </button>
         </div>
       </div>
@@ -203,20 +203,30 @@ export function ConfigurationPage() {
               mappings.map((row) => (
                 <tr key={row.id} style={{ cursor: 'default' }}>
                   <td>
-                    <code
-                      style={{
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: 12,
-                        color: 'var(--ink-2)',
-                        background: 'var(--bg-sunken)',
-                        padding: '2px 6px',
-                        borderRadius: 4,
-                      }}
-                    >
-                      {row.glob}
-                    </code>
+                    {editingId === row.id ? (
+                      <input
+                        className="input"
+                        style={{ fontFamily: 'var(--font-mono)', fontSize: 12, padding: '3px 7px', width: '100%' }}
+                        value={editDraft.glob}
+                        onChange={(e) => setEditDraft((d) => ({ ...d, glob: e.target.value }))}
+                        autoFocus
+                      />
+                    ) : (
+                      <code style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-2)', background: 'var(--bg-sunken)', padding: '2px 6px', borderRadius: 4 }}>
+                        {row.glob}
+                      </code>
+                    )}
                   </td>
-                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{row.doc}</td>
+                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>
+                    {editingId === row.id ? (
+                      <input
+                        className="input"
+                        style={{ fontFamily: 'var(--font-mono)', fontSize: 12, padding: '3px 7px', width: '100%' }}
+                        value={editDraft.doc}
+                        onChange={(e) => setEditDraft((d) => ({ ...d, doc: e.target.value }))}
+                      />
+                    ) : row.doc}
+                  </td>
                   <td
                     style={{
                       fontFamily: 'var(--font-mono)',
@@ -230,60 +240,81 @@ export function ConfigurationPage() {
                     <span className={`pill ${toneToPill(row.tone)}`}>● {row.status}</span>
                   </td>
                   <td style={{ position: 'relative' }}>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-ghost"
-                      aria-label={`Actions for ${row.glob}`}
-                      onClick={() =>
-                        setOpenMenuId((current) => (current === row.id ? null : row.id))
-                      }
-                    >
-                      ⋮
-                    </button>
-
-                    {openMenuId === row.id ? (
-                      <div
-                        style={{
-                          position: 'absolute',
-                          right: 0,
-                          top: 'calc(100% + 6px)',
-                          minWidth: '152px',
-                          background: 'var(--bg-elev)',
-                          border: '1px solid var(--border)',
-                          borderRadius: 'var(--r-md)',
-                          padding: '0.35rem',
-                          display: 'grid',
-                          gap: '0.25rem',
-                          zIndex: 10,
-                          boxShadow: 'var(--shadow-md)',
-                        }}
-                      >
+                    {editingId === row.id ? (
+                      <div style={{ display: 'flex', gap: 4 }}>
                         <button
                           type="button"
-                          className="btn btn-sm"
-                          style={{ justifyContent: 'flex-start' }}
-                          onClick={() => handleEditPattern(row.id)}
+                          className="btn btn-sm btn-accent"
+                          onClick={() => handleSaveEdit(row.id)}
                         >
-                          Edit
+                          Save
                         </button>
                         <button
                           type="button"
-                          className="btn btn-sm"
-                          style={{ justifyContent: 'flex-start' }}
-                          onClick={() => handleTogglePattern(row.id)}
+                          className="btn btn-sm btn-ghost"
+                          onClick={() => setEditingId(null)}
                         >
-                          {row.tone === 'disabled' ? 'Enable' : 'Disable'}
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-danger"
-                          style={{ justifyContent: 'flex-start' }}
-                          onClick={() => handleDeletePattern(row.id)}
-                        >
-                          Delete
+                          Cancel
                         </button>
                       </div>
-                    ) : null}
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-ghost"
+                          aria-label={`Actions for ${row.glob}`}
+                          onClick={() =>
+                            setOpenMenuId((current) => (current === row.id ? null : row.id))
+                          }
+                        >
+                          ⋮
+                        </button>
+
+                        {openMenuId === row.id ? (
+                          <div
+                            style={{
+                              position: 'absolute',
+                              right: 0,
+                              top: 'calc(100% + 6px)',
+                              minWidth: '152px',
+                              background: 'var(--bg-elev)',
+                              border: '1px solid var(--border)',
+                              borderRadius: 'var(--r-md)',
+                              padding: '0.35rem',
+                              display: 'grid',
+                              gap: '0.25rem',
+                              zIndex: 10,
+                              boxShadow: 'var(--shadow-md)',
+                            }}
+                          >
+                            <button
+                              type="button"
+                              className="btn btn-sm"
+                              style={{ justifyContent: 'flex-start' }}
+                              onClick={() => handleEditPattern(row.id)}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-sm"
+                              style={{ justifyContent: 'flex-start' }}
+                              onClick={() => handleTogglePattern(row.id)}
+                            >
+                              {row.tone === 'disabled' ? 'Enable' : 'Disable'}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-danger"
+                              style={{ justifyContent: 'flex-start' }}
+                              onClick={() => handleDeletePattern(row.id)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        ) : null}
+                      </>
+                    )}
                   </td>
                 </tr>
               ))
