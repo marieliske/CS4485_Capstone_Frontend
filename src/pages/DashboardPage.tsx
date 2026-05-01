@@ -26,14 +26,10 @@ function asFiniteNumber(value: unknown): number | null {
 }
 
 function parseScanId(value?: string): number {
-  if (!value) {
-    return 0
-  }
+  if (!value) return 0
 
   const parsed = Number(value)
-  if (!Number.isFinite(parsed)) {
-    return 0
-  }
+  if (!Number.isFinite(parsed)) return 0
 
   return Math.max(0, Math.floor(parsed))
 }
@@ -41,37 +37,26 @@ function parseScanId(value?: string): number {
 function pickNumber(source: Record<string, unknown>, keys: string[]): number | null {
   for (const key of keys) {
     const parsed = asFiniteNumber(source[key])
-    if (parsed !== null) {
-      return parsed
-    }
+    if (parsed !== null) return parsed
   }
+
   return null
 }
 
 function formatRelativeTime(value?: string): string {
-  if (!value) {
-    return 'just now'
-  }
+  if (!value) return 'just now'
 
   const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) {
-    return 'recently'
-  }
+  if (Number.isNaN(parsed.getTime())) return 'recently'
 
   const seconds = Math.max(0, Math.round((Date.now() - parsed.getTime()) / 1000))
-  if (seconds < 60) {
-    return `${seconds}s ago`
-  }
+  if (seconds < 60) return `${seconds}s ago`
 
   const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) {
-    return `${minutes}m ago`
-  }
+  if (minutes < 60) return `${minutes}m ago`
 
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) {
-    return `${hours}h ago`
-  }
+  if (hours < 24) return `${hours}h ago`
 
   const days = Math.floor(hours / 24)
   return `${days}d ago`
@@ -79,6 +64,7 @@ function formatRelativeTime(value?: string): string {
 
 function formatScanPseudoName(scan: ScanRecord, fallbackIndex: number): string {
   const parsed = scan.created_at ? new Date(scan.created_at) : null
+
   if (parsed && !Number.isNaN(parsed.getTime())) {
     return `Scan ${parsed.toLocaleString([], {
       month: 'short',
@@ -90,7 +76,6 @@ function formatScanPseudoName(scan: ScanRecord, fallbackIndex: number): string {
 
   return `Scan ${fallbackIndex + 1}`
 }
-
 
 function RotViz({ pct, history, rotClass }: { pct: number; history: number[]; rotClass: string }) {
   const { settings } = useSettings()
@@ -106,6 +91,7 @@ function RotViz({ pct, history, rotClass }: { pct: number; history: number[]; ro
       if (i < active) return 'on'
       return ''
     })
+
     return (
       <div className="viz-colony">
         {cells.map((cls, i) => (
@@ -124,9 +110,12 @@ function RotViz({ pct, history, rotClass }: { pct: number; history: number[]; ro
     const linePath = xs.map((x, i) => `${i === 0 ? 'M' : 'L'}${x},${ys[i]}`).join(' ')
     const fillPath = `${linePath} L${w},${h} L0,${h} Z`
     const scoreColor = pct >= 65 ? 'var(--critical)' : pct >= 35 ? 'var(--warning)' : 'var(--success)'
+
     return (
       <div className="viz-sparkline">
-        <div className="spark-value" style={{ color: scoreColor }}>{pct}<sup style={{ fontSize: '0.45em' }}>%</sup></div>
+        <div className="spark-value" style={{ color: scoreColor }}>
+          {pct}<sup style={{ fontSize: '0.45em' }}>%</sup>
+        </div>
         <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
           <path className="spark-fill" d={fillPath} />
           <path className="spark-line" d={linePath} />
@@ -142,13 +131,17 @@ function RotViz({ pct, history, rotClass }: { pct: number; history: number[]; ro
         <circle className="track" cx="80" cy="80" r={r} />
         <circle
           className="value"
-          cx="80" cy="80" r={r}
+          cx="80"
+          cy="80"
+          r={r}
           strokeDasharray={circumference}
           strokeDashoffset={offset}
         />
       </svg>
       <div className="rot-gauge-inner">
-        <div className="pct">{pct}<sup>%</sup></div>
+        <div className="pct">
+          {pct}<sup>%</sup>
+        </div>
         <div className="status">{pct >= 65 ? 'critical' : pct >= 35 ? 'degrading' : 'healthy'}</div>
       </div>
     </div>
@@ -165,6 +158,9 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showAddRepoSteps, setShowAddRepoSteps] = useState(false)
+  const [copiedCommand, setCopiedCommand] = useState(false)
+
+  const repoInstallCommand = 'npx github:SuchiiJain/CS4485_Capstone'
 
   const openAddRepoGuide = useCallback(() => {
     setShowAddRepoSteps(true)
@@ -178,6 +174,19 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
     setShowAddRepoSteps(false)
     onOpenProjects?.()
   }, [onOpenProjects])
+
+  const copyRepoCommand = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(repoInstallCommand)
+      setCopiedCommand(true)
+
+      window.setTimeout(() => {
+        setCopiedCommand(false)
+      }, 1500)
+    } catch {
+      window.alert('Could not copy command. Please copy it manually.')
+    }
+  }, [])
 
   const loadDashboard = useCallback(async (showLoading = true) => {
     if (showLoading) {
@@ -266,7 +275,7 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
     [healthProgress, openIssues, scans.length, totalProjectCount],
   )
 
-  const activityRows = useMemo<DashboardActivity[]>(() => {
+  const activityRows = useMemo<DashboardActivity[]>((() => {
     if (scans.length === 0) {
       return [
         {
@@ -294,7 +303,7 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
         tone,
       }
     })
-  }, [scans])
+  }) as () => DashboardActivity[], [scans])
 
   const statActions: Record<string, (() => void) | undefined> = {
     'Total Projects': onOpenProjects,
@@ -319,15 +328,12 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
 
   return (
     <div className="dash-grid">
-      {/* Page head */}
       <div className="page-head">
         <div>
           <div className="kicker">
             Overview · {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           </div>
-          <h1>
-            {loading ? 'Loading dashboard…' : `Docs are ${rotPct}% rotten`}
-          </h1>
+          <h1>{loading ? 'Loading dashboard…' : `Docs are ${rotPct}% rotten`}</h1>
           <p className="sub">
             {totalProjectCount} tracked {totalProjectCount === 1 ? 'repository' : 'repositories'} ·{' '}
             {openIssues} open {openIssues === 1 ? 'issue' : 'issues'} ·{' '}
@@ -337,37 +343,49 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
             {error ? <span style={{ color: 'var(--critical)', marginLeft: 12, fontSize: 12 }}>{error}</span> : null}
           </p>
         </div>
+
         <div className="page-head-actions">
           <button type="button" className="btn" onClick={() => onOpenHistory?.()}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 8v5l3 2"/><circle cx="12" cy="12" r="8"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M12 8v5l3 2" />
+              <circle cx="12" cy="12" r="8" />
+            </svg>
             Scan History
           </button>
+
           <button type="button" className="btn btn-accent" onClick={openAddRepoGuide}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M12 5v14" />
+              <path d="M5 12h14" />
+            </svg>
             Add Repo
           </button>
         </div>
       </div>
 
-      {/* Hero row */}
       <div className="dash-hero">
-        {/* Rot index card */}
         <div className="card rot-hero-card">
           <div className="rot-hero-head">
             <div>
               <div className="kicker">Rot index · workspace</div>
-              <h2>Documentation health for {totalProjectCount} {totalProjectCount === 1 ? 'repo' : 'repos'}</h2>
+              <h2>
+                Documentation health for {totalProjectCount} {totalProjectCount === 1 ? 'repo' : 'repos'}
+              </h2>
             </div>
             <span className={`pill ${streamConnected ? 'pill-live' : ''}`}>
               {streamConnected ? 'Live' : 'Polling'}
             </span>
           </div>
+
           <div className="rot-hero-body">
             <RotViz pct={rotPct} history={recentScores} rotClass={rotClass} />
+
             <div className="rot-meta-list">
               <div className="rot-meta-row">
                 <span className="label">Open issues</span>
-                <span className="value" style={{ color: openIssues > 0 ? 'var(--critical)' : 'var(--success)' }}>{openIssues} open</span>
+                <span className="value" style={{ color: openIssues > 0 ? 'var(--critical)' : 'var(--success)' }}>
+                  {openIssues} open
+                </span>
               </div>
               <div className="rot-meta-row">
                 <span className="label">Total scans</span>
@@ -385,61 +403,74 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
           </div>
         </div>
 
-        {/* Quick actions */}
         <div className="card">
           <div className="card-head">
             <h3>Quick actions</h3>
           </div>
+
           <div className="qa-grid">
             <button className="qa-btn primary" type="button" onClick={onOpenIssues}>
               <div className="qa-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ width: 16, height: 16 }}>
-                  <circle cx="12" cy="12" r="8"/><path d="M12 8v5"/><path d="M12 16h.01"/>
+                  <circle cx="12" cy="12" r="8" />
+                  <path d="M12 8v5" />
+                  <path d="M12 16h.01" />
                 </svg>
               </div>
               <div>
-                <strong>Triage {openIssues} open {openIssues === 1 ? 'issue' : 'issues'}</strong>
+                <strong>
+                  Triage {openIssues} open {openIssues === 1 ? 'issue' : 'issues'}
+                </strong>
                 <small>Review and close documentation mismatches</small>
               </div>
-              <div className="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 6l6 6-6 6"/></svg></div>
+              <div className="chev">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M9 6l6 6-6 6" />
+                </svg>
+              </div>
             </button>
+
             <button className="qa-btn" type="button" onClick={() => onOpenHistory?.()}>
               <div className="qa-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ width: 16, height: 16 }}>
-                  <path d="M12 8v5l3 2"/><circle cx="12" cy="12" r="8"/>
+                  <path d="M12 8v5l3 2" />
+                  <circle cx="12" cy="12" r="8" />
                 </svg>
               </div>
               <div>
                 <strong>Review last scan</strong>
                 <small>Inspect the most recent scan run</small>
               </div>
-              <div className="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 6l6 6-6 6"/></svg></div>
+              <div className="chev">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M9 6l6 6-6 6" />
+                </svg>
+              </div>
             </button>
+
             <button className="qa-btn" type="button" onClick={openAddRepoGuide}>
               <div className="qa-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ width: 16, height: 16 }}>
-                  <path d="M3.5 8h6l1.7 2H20v8a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2z"/>
+                  <path d="M3.5 8h6l1.7 2H20v8a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2z" />
                 </svg>
               </div>
               <div>
                 <strong>Watch a new repository</strong>
                 <small>Connect a GitHub repo to track</small>
               </div>
-              <div className="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 6l6 6-6 6"/></svg></div>
+              <div className="chev">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M9 6l6 6-6 6" />
+                </svg>
+              </div>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Stat strip */}
       <div className="stat-strip">
         {statCards.map((card) => (
-          <button
-            key={card.title}
-            className="stat-cell"
-            type="button"
-            onClick={statActions[card.title]}
-          >
+          <button key={card.title} className="stat-cell" type="button" onClick={statActions[card.title]}>
             <div className="stat-label">
               <span className={`dot dot-${card.tone === 'positive' ? 'success' : card.tone === 'negative' ? 'critical' : 'neutral'}`} />
               {card.title}
@@ -450,17 +481,18 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
         ))}
       </div>
 
-      {/* Activity + info */}
       <div className="grid-2">
-        {/* Activity feed */}
         <div className="card">
           <div className="card-head">
             <h3>Recent Activity</h3>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <span className="pill">Last {scans.length} scans</span>
-              <button type="button" className="btn btn-sm btn-ghost" onClick={() => onOpenHistory?.()}>All scans</button>
+              <button type="button" className="btn btn-sm btn-ghost" onClick={() => onOpenHistory?.()}>
+                All scans
+              </button>
             </div>
           </div>
+
           <div>
             {activityRows.map((activity) => (
               <button
@@ -468,41 +500,66 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
                 className="feed-item"
                 type="button"
                 onClick={() => onOpenHistory?.(activity.scanId)}
-                style={{ boxShadow: `inset 3px 0 0 ${activity.tone === 'success' ? 'var(--success)' : activity.tone === 'warning' ? 'var(--warning)' : activity.tone === 'danger' ? 'var(--critical)' : 'var(--info)'}` }}
+                style={{
+                  boxShadow: `inset 3px 0 0 ${
+                    activity.tone === 'success'
+                      ? 'var(--success)'
+                      : activity.tone === 'warning'
+                        ? 'var(--warning)'
+                        : activity.tone === 'danger'
+                          ? 'var(--critical)'
+                          : 'var(--info)'
+                  }`,
+                }}
               >
                 <div className={`feed-icon ${toneToFeedClass(activity.tone)}`}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                     {activity.tone === 'success' ? (
-                      <><path d="M20 6L9 17l-5-5"/></>
+                      <path d="M20 6L9 17l-5-5" />
                     ) : activity.tone === 'warning' ? (
-                      <><path d="M12 4 21 19H3z"/><path d="M12 9v4"/><path d="M12 16h.01"/></>
+                      <>
+                        <path d="M12 4 21 19H3z" />
+                        <path d="M12 9v4" />
+                        <path d="M12 16h.01" />
+                      </>
                     ) : (
-                      <><circle cx="11" cy="11" r="5.5"/><path d="m15 15 5 5"/></>
+                      <>
+                        <circle cx="11" cy="11" r="5.5" />
+                        <path d="m15 15 5 5" />
+                      </>
                     )}
                   </svg>
                 </div>
+
                 <div className="feed-copy">
                   <strong>{activity.title}</strong>
                   <small>{activity.subtitle}</small>
                 </div>
+
                 <div className="feed-time">{activity.time}</div>
               </button>
             ))}
           </div>
+
           {scans.length > 4 ? (
             <div style={{ padding: '10px 18px', borderTop: '1px solid var(--border)' }}>
-              <button type="button" className="btn btn-sm btn-ghost" style={{ width: '100%', justifyContent: 'center' }} onClick={() => onOpenHistory?.()}>
+              <button
+                type="button"
+                className="btn btn-sm btn-ghost"
+                style={{ width: '100%', justifyContent: 'center' }}
+                onClick={() => onOpenHistory?.()}
+              >
                 View full scan history
               </button>
             </div>
           ) : null}
         </div>
 
-        {/* Summary stats card */}
         <div className="card">
           <div className="card-head">
             <h3>Workspace summary</h3>
           </div>
+
           <div className="card-pad">
             <div className="rot-meta-list">
               <div className="rot-meta-row">
@@ -525,11 +582,18 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
               </div>
               <div className="rot-meta-row">
                 <span className="label">Open issues</span>
-                <span className="value mono" style={{ color: openIssues > 0 ? 'var(--critical)' : 'inherit' }}>{openIssues}</span>
+                <span className="value mono" style={{ color: openIssues > 0 ? 'var(--critical)' : 'inherit' }}>
+                  {openIssues}
+                </span>
               </div>
               <div className="rot-meta-row">
                 <span className="label">Health score</span>
-                <span className="value mono" style={{ color: rotPct >= 65 ? 'var(--critical)' : rotPct >= 35 ? 'var(--warning)' : 'var(--success)' }}>{rotPct}%</span>
+                <span
+                  className="value mono"
+                  style={{ color: rotPct >= 65 ? 'var(--critical)' : rotPct >= 35 ? 'var(--warning)' : 'var(--success)' }}
+                >
+                  {rotPct}%
+                </span>
               </div>
             </div>
           </div>
@@ -549,13 +613,13 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
             display: 'grid',
             placeItems: 'center',
             zIndex: 50,
-            padding: 16,
+            padding: 24,
           }}
         >
           <div
             onClick={(event) => event.stopPropagation()}
             style={{
-              width: 'min(760px, 100%)',
+              width: 'min(680px, calc(100vw - 32px))',
               border: '1px solid var(--border)',
               borderRadius: 'var(--r-md)',
               background: 'var(--bg-elev)',
@@ -564,7 +628,9 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
             }}
           >
             <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--border)' }}>
-              <div className="kicker" style={{ marginBottom: 6 }}>Repository onboarding</div>
+              <div className="kicker" style={{ marginBottom: 6 }}>
+                Repository onboarding
+              </div>
               <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 28, fontWeight: 400, lineHeight: 1.1 }}>
                 Add Repo Setup Steps
               </h3>
@@ -578,29 +644,31 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
               <ol style={{ margin: 0, paddingLeft: 20, display: 'grid', gap: 10, color: 'var(--ink-2)', fontSize: 13.5 }}>
                 <li>
                   In your terminal, run:
-                  <code
-                    style={{
-                      display: 'block',
-                      marginTop: 6,
-                      padding: '10px 12px',
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--r-sm)',
-                      background: 'var(--bg-code)',
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 12,
-                      color: 'var(--ink)',
-                    }}
-                  >
-                    npx github:SuchiiJain/CS4485_Capstone
-                  </code>
+                  <div className="repo-command-row">
+                    <code>{repoInstallCommand}</code>
+
+                    <button type="button" className="btn btn-sm btn-ghost" onClick={copyRepoCommand}>
+                      {copiedCommand ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
                 </li>
                 <li>Follow the prompts to map the code globs and roc file paths.</li>
                 <li>Make an initial commit to GitHub to configure a baseline scan.</li>
               </ol>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '14px 18px', borderTop: '1px solid var(--border)' }}>
-              <button type="button" className="btn" onClick={closeAddRepoGuide}>Close</button>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: 8,
+                padding: '14px 18px',
+                borderTop: '1px solid var(--border)',
+              }}
+            >
+              <button type="button" className="btn" onClick={closeAddRepoGuide}>
+                Close
+              </button>
               <button type="button" className="btn btn-accent" onClick={continueToProjects}>
                 Continue To Projects
               </button>

@@ -1672,3 +1672,24 @@
   fill: color-mix(in oklab, var(--accent) 15%, transparent);
   stroke: none;
 }
+
+.repo-command-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-code);
+}
+
+.repo-command-row code {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink);
+}
