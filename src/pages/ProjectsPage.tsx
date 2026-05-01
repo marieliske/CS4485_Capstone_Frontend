@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { Fragment, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { getRepos, getScanRunsForRepo } from '../api/firestore'
 import { getScanIssues } from '../api/scans'
 import type { ScanIssueRecord, ScanRecord } from '../api/scans'
@@ -24,67 +24,45 @@ function asFiniteNumber(value: unknown): number | null {
 }
 
 function asObject(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== 'object') {
-    return {}
-  }
+  if (!value || typeof value !== 'object') return {}
   return value as Record<string, unknown>
 }
 
 function pickNumber(source: unknown, keys: string[]): number | null {
-  if (!source || typeof source !== 'object') {
-    return null
-  }
-
+  if (!source || typeof source !== 'object') return null
   const record = source as Record<string, unknown>
 
   for (const key of keys) {
     const parsed = asFiniteNumber(record[key])
-    if (parsed !== null) {
-      return parsed
-    }
+    if (parsed !== null) return parsed
   }
 
   return null
 }
 
 function formatRelativeTime(value?: string): string {
-  if (!value) {
-    return 'just now'
-  }
+  if (!value) return 'just now'
 
   const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) {
-    return 'recently'
-  }
+  if (Number.isNaN(parsed.getTime())) return 'recently'
 
   const seconds = Math.max(0, Math.round((Date.now() - parsed.getTime()) / 1000))
-  if (seconds < 60) {
-    return `${seconds}s ago`
-  }
+  if (seconds < 60) return `${seconds}s ago`
 
   const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) {
-    return `${minutes}m ago`
-  }
+  if (minutes < 60) return `${minutes}m ago`
 
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) {
-    return `${hours}h ago`
-  }
+  if (hours < 24) return `${hours}h ago`
 
-  const days = Math.floor(hours / 24)
-  return `${days}d ago`
+  return `${Math.floor(hours / 24)}d ago`
 }
 
 function formatScanRunLabel(value?: string): string {
-  if (!value) {
-    return 'Recent scan'
-  }
+  if (!value) return 'Recent scan'
 
   const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) {
-    return 'Recent scan'
-  }
+  if (Number.isNaN(parsed.getTime())) return 'Recent scan'
 
   return parsed.toLocaleString([], {
     month: 'short',
@@ -95,41 +73,27 @@ function formatScanRunLabel(value?: string): string {
 }
 
 function shortenScanId(id?: string): string {
-  if (!id) {
-    return 'Unavailable'
-  }
-
+  if (!id) return 'Unavailable'
   return id.length > 8 ? `${id.slice(0, 8)}…` : id
 }
 
 function getStatusTone(score: number, mismatchCount: number): ProjectRow['statusTone'] {
-  if (score <= 20 && mismatchCount === 0) {
-    return 'healthy'
-  }
-  if (score <= 60) {
-    return 'degrading'
-  }
+  if (score <= 20 && mismatchCount === 0) return 'healthy'
+  if (score <= 60) return 'degrading'
   return 'critical'
 }
 
 function getLatestStatus(score: number, mismatchCount: number): string {
-  if (score <= 20 && mismatchCount === 0) {
-    return 'Healthy'
-  }
-  if (score <= 40) {
-    return 'Slightly Stale'
-  }
-  if (score <= 60) {
-    return 'Needs Review'
-  }
-  if (score <= 80) {
-    return 'At Risk'
-  }
+  if (score <= 20 && mismatchCount === 0) return 'Healthy'
+  if (score <= 40) return 'Slightly Stale'
+  if (score <= 60) return 'Needs Review'
+  if (score <= 80) return 'At Risk'
   return 'Rotten'
 }
 
 function summarizeIssue(record: ScanIssueRecord, index: number): string {
   const issue = asObject(record)
+
   return (
     (typeof issue.title === 'string' && issue.title) ||
     (typeof issue.message === 'string' && issue.message) ||
@@ -151,28 +115,26 @@ function toProjectRow(repoName: string, scans: ScanRecord[]): ProjectRow {
     0,
     Math.min(
       100,
-      Math.round(
-        pickNumber(latestScan, ['rot_score', 'score', 'health_index', 'healthIndex']) ?? 0,
-      ),
+      Math.round(pickNumber(latestScan, ['rot_score', 'score', 'health_index', 'healthIndex']) ?? 0),
     ),
   )
+
   const latestMismatchCount = Math.max(
     0,
     Math.round(
       pickNumber(latestScan, ['mismatch_count', 'mismatches', 'total_issues', 'issue_count']) ?? 0,
     ),
   )
+
   const latestStatus =
     (typeof latestScan.status === 'string' && latestScan.status) ||
     getLatestStatus(latestScore, latestMismatchCount)
-
-  const statusTone = getStatusTone(latestScore, latestMismatchCount)
 
   return {
     name: repoName.split('/').at(-1) || repoName,
     repository: repoName,
     latestStatus,
-    statusTone,
+    statusTone: getStatusTone(latestScore, latestMismatchCount),
     latestScanId: typeof latestScan.id === 'string' ? latestScan.id : undefined,
     latestMismatchCount,
     scanCount: sortedScans.length,
@@ -185,7 +147,6 @@ function rotColor(score: number): string {
   return score >= 65 ? 'var(--critical)' : score >= 35 ? 'var(--warning)' : 'var(--success)'
 }
 
-
 export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
   const [projectRows, setProjectRows] = useState<ProjectRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -194,10 +155,12 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
   const [statusFilter, setStatusFilter] = useState('all')
   const [sort, setSort] = useState('name')
   const [showAddRepoSteps, setShowAddRepoSteps] = useState(false)
+  const [copiedCommand, setCopiedCommand] = useState(false)
   const [expandedProjectKey, setExpandedProjectKey] = useState<string | null>(null)
   const [expandedIssues, setExpandedIssues] = useState<Record<string, ScanIssueRecord[]>>({})
   const [expandedLoadingKey, setExpandedLoadingKey] = useState<string | null>(null)
 
+  const repoInstallCommand = 'npx github:SuchiiJain/CS4485_Capstone'
   const deferredQuery = useDeferredValue(query)
 
   useEffect(() => {
@@ -226,9 +189,7 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
           setError(err instanceof Error ? err.message : 'Unable to load projects from Firestore.')
         }
       } finally {
-        if (!cancelled) {
-          setLoading(false)
-        }
+        if (!cancelled) setLoading(false)
       }
     }
 
@@ -261,12 +222,14 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
 
   const filteredRows = useMemo(() => {
     const normalizedQuery = deferredQuery.trim().toLowerCase()
+
     return projectRows.filter((project) => {
       const matchesStatus = statusFilter === 'all' || project.statusTone === statusFilter
       if (!matchesStatus) return false
       if (!normalizedQuery) return true
-      return [project.name, project.repository, project.latestStatus].some((v) =>
-        v.toLowerCase().includes(normalizedQuery),
+
+      return [project.name, project.repository, project.latestStatus].some((value) =>
+        value.toLowerCase().includes(normalizedQuery),
       )
     })
   }, [deferredQuery, projectRows, statusFilter])
@@ -279,22 +242,33 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
     })
   }, [filteredRows, sort])
 
+  const trackedProjects = projectRows.filter((project) => project.statusTone !== 'untracked')
   const meanRotScore =
     projectRows.length === 0
       ? 0
       : Math.round(
-          projectRows
-            .filter((p) => p.statusTone !== 'untracked')
-            .reduce((sum, p) => sum + p.score, 0) /
-            Math.max(1, projectRows.filter((p) => p.statusTone !== 'untracked').length),
+          trackedProjects.reduce((sum, project) => sum + project.score, 0) /
+            Math.max(1, trackedProjects.length),
         )
 
-  const totalIssues = projectRows.reduce((s, p) => s + p.latestMismatchCount, 0)
-
+  const totalIssues = projectRows.reduce((sum, project) => sum + project.latestMismatchCount, 0)
   const mostRottenRepo = [...projectRows].sort((a, b) => b.score - a.score)[0]
 
   const handleCreateProject = () => {
     setShowAddRepoSteps(true)
+  }
+
+  const copyRepoCommand = async () => {
+    try {
+      await navigator.clipboard.writeText(repoInstallCommand)
+      setCopiedCommand(true)
+
+      window.setTimeout(() => {
+        setCopiedCommand(false)
+      }, 1500)
+    } catch {
+      window.alert('Could not copy command. Please copy it manually.')
+    }
   }
 
   const handleToggleExpand = async (project: ProjectRow) => {
@@ -307,9 +281,7 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
 
     setExpandedProjectKey(key)
 
-    if (!project.latestScanId || expandedIssues[key]) {
-      return
-    }
+    if (!project.latestScanId || expandedIssues[key]) return
 
     try {
       setExpandedLoadingKey(key)
@@ -335,12 +307,9 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
               : ''}
           </p>
         </div>
+
         <div className="page-head-actions">
-          <button
-            type="button"
-            className="btn btn-accent"
-            onClick={handleCreateProject}
-          >
+          <button type="button" className="btn btn-accent" onClick={handleCreateProject}>
             + Add repo
           </button>
         </div>
@@ -374,8 +343,17 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
             }}
           >
             <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--border)' }}>
-              <div className="kicker" style={{ marginBottom: 6 }}>Repository onboarding</div>
-              <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 28, fontWeight: 400, lineHeight: 1.1 }}>
+              <div className="kicker" style={{ marginBottom: 6 }}>
+                Repository onboarding
+              </div>
+              <h3
+                style={{
+                  fontFamily: 'var(--font-serif)',
+                  fontSize: 28,
+                  fontWeight: 400,
+                  lineHeight: 1.1,
+                }}
+              >
                 Add Repo Setup Steps
               </h3>
             </div>
@@ -385,31 +363,40 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
                 Follow these steps to connect a repository and seed the first baseline scan.
               </p>
 
-              <ol style={{ margin: 0, paddingLeft: 20, display: 'grid', gap: 10, color: 'var(--ink-2)', fontSize: 13.5 }}>
+              <ol
+                style={{
+                  margin: 0,
+                  paddingLeft: 20,
+                  display: 'grid',
+                  gap: 10,
+                  color: 'var(--ink-2)',
+                  fontSize: 13.5,
+                }}
+              >
                 <li>
                   In your terminal, run:
-                  <code
-                    style={{
-                      display: 'block',
-                      marginTop: 6,
-                      padding: '10px 12px',
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--r-sm)',
-                      background: 'var(--bg-code)',
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 12,
-                      color: 'var(--ink)',
-                    }}
-                  >
-                    npx github:SuchiiJain/CS4485_Capstone
-                  </code>
+                  <div className="repo-command-row">
+                    <code>{repoInstallCommand}</code>
+
+                    <button type="button" className="btn btn-sm btn-ghost" onClick={copyRepoCommand}>
+                      {copiedCommand ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
                 </li>
                 <li>Follow the prompts to map the code globs and roc file paths.</li>
                 <li>Make an initial commit to GitHub to configure a baseline scan.</li>
               </ol>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '14px 18px', borderTop: '1px solid var(--border)' }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: 8,
+                padding: '14px 18px',
+                borderTop: '1px solid var(--border)',
+              }}
+            >
               <button type="button" className="btn" onClick={() => setShowAddRepoSteps(false)}>
                 Close
               </button>
@@ -418,7 +405,6 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
         </div>
       ) : null}
 
-      {/* Stat strip */}
       <div className="hist-stat-strip" style={{ marginBottom: 16 }}>
         {[
           {
@@ -461,7 +447,6 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
         ))}
       </div>
 
-      {/* Filters */}
       <div className="issues-filterbar" style={{ marginBottom: 14 }}>
         {(
           [
@@ -471,17 +456,19 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
             ['healthy', 'Healthy', counts.healthy],
             ['untracked', 'Untracked', counts.untracked],
           ] as [string, string, number][]
-        ).map(([k, label, n]) => (
+        ).map(([key, label, count]) => (
           <button
-            key={k}
+            key={key}
             type="button"
-            className={`filter-chip ${statusFilter === k ? 'active' : ''}`}
-            onClick={() => setStatusFilter(k)}
+            className={`filter-chip ${statusFilter === key ? 'active' : ''}`}
+            onClick={() => setStatusFilter(key)}
           >
-            {label} <span className="count">{n}</span>
+            {label} <span className="count">{count}</span>
           </button>
         ))}
+
         <span style={{ flex: 1 }} />
+
         <div className="filter-search">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
             <circle cx="11" cy="11" r="5.5" />
@@ -491,14 +478,15 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
             type="text"
             placeholder="Search projects…"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(event) => setQuery(event.target.value)}
             aria-label="Search projects"
           />
         </div>
+
         <select
           className="select"
           value={sort}
-          onChange={(e) => setSort(e.target.value)}
+          onChange={(event) => setSort(event.target.value)}
           style={{ padding: '5px 9px', fontSize: 12 }}
           aria-label="Sort projects"
         >
@@ -508,7 +496,6 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
         </select>
       </div>
 
-      {/* Table */}
       <div className="card" style={{ overflow: 'hidden' }}>
         {loading ? (
           <div className="page-placeholder">Loading projects from backend scan data…</div>
@@ -530,10 +517,12 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
                 <th style={{ width: 100 }} />
               </tr>
             </thead>
+
             <tbody>
               {sortedRows.map((project) => {
                 const isExpanded = expandedProjectKey === project.repository
                 const issues = expandedIssues[project.repository] ?? []
+
                 const leftColor =
                   project.statusTone === 'critical'
                     ? 'var(--critical)'
@@ -542,6 +531,7 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
                       : project.statusTone === 'healthy'
                         ? 'var(--success)'
                         : 'var(--border)'
+
                 const avatarBg =
                   project.statusTone === 'critical'
                     ? 'linear-gradient(135deg, oklch(0.65 0.15 25), oklch(0.5 0.18 15))'
@@ -550,11 +540,8 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
                       : 'linear-gradient(135deg, oklch(0.68 0.12 75), oklch(0.52 0.14 70))'
 
                 return (
-                  <>
-                    <tr
-                      key={project.repository}
-                      style={{ opacity: project.statusTone === 'untracked' ? 0.6 : 1 }}
-                    >
+                  <Fragment key={project.repository}>
+                    <tr style={{ opacity: project.statusTone === 'untracked' ? 0.6 : 1 }}>
                       <td style={{ boxShadow: `inset 3px 0 0 ${leftColor}`, paddingLeft: 20 }}>
                         <div className="proj-row-name">
                           <div className="proj-avatar" style={{ background: avatarBg }}>
@@ -566,26 +553,16 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
                           </div>
                         </div>
                       </td>
+
                       <td>
                         {project.statusTone === 'untracked' ? (
-                          <span
-                            style={{
-                              fontFamily: 'var(--font-mono)',
-                              fontSize: 11,
-                              color: 'var(--ink-3)',
-                            }}
-                          >
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)' }}>
                             not scanned
                           </span>
                         ) : (
                           <div className="mini-score">
                             <div className="mini-score-bar" style={{ width: 100 }}>
-                              <span
-                                style={{
-                                  width: `${project.score}%`,
-                                  background: rotColor(project.score),
-                                }}
-                              />
+                              <span style={{ width: `${project.score}%`, background: rotColor(project.score) }} />
                             </div>
                             <strong
                               style={{
@@ -600,6 +577,7 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
                           </div>
                         )}
                       </td>
+
                       <td>
                         {project.latestMismatchCount > 0 ? (
                           <span
@@ -617,35 +595,20 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
                             {project.latestMismatchCount}
                           </span>
                         ) : (
-                          <span
-                            style={{
-                              fontFamily: 'var(--font-mono)',
-                              fontSize: 11,
-                              color: 'var(--ink-4)',
-                            }}
-                          >
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-4)' }}>
                             —
                           </span>
                         )}
                       </td>
-                      <td
-                        style={{
-                          fontFamily: 'var(--font-mono)',
-                          fontSize: 11.5,
-                          color: 'var(--ink-3)',
-                        }}
-                      >
+
+                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--ink-3)' }}>
                         {project.scanCount || '—'}
                       </td>
-                      <td
-                        style={{
-                          fontFamily: 'var(--font-mono)',
-                          fontSize: 11.5,
-                          color: 'var(--ink-3)',
-                        }}
-                      >
+
+                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--ink-3)' }}>
                         {formatRelativeTime(project.lastUpdated)}
                       </td>
+
                       <td>
                         <span
                           className={`pill ${
@@ -661,7 +624,8 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
                           {project.latestStatus}
                         </span>
                       </td>
-                      <td onClick={(e) => e.stopPropagation()}>
+
+                      <td onClick={(event) => event.stopPropagation()}>
                         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                           <button
                             type="button"
@@ -670,6 +634,7 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
                           >
                             {isExpanded ? 'Hide' : 'Inspect'}
                           </button>
+
                           {project.latestScanId ? (
                             <button
                               type="button"
@@ -684,11 +649,8 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
                     </tr>
 
                     {isExpanded ? (
-                      <tr key={`${project.repository}-details`}>
-                        <td
-                          colSpan={7}
-                          style={{ padding: 0, background: 'var(--bg-sunken)' }}
-                        >
+                      <tr>
+                        <td colSpan={7} style={{ padding: 0, background: 'var(--bg-sunken)' }}>
                           <div
                             style={{
                               padding: '16px 20px',
@@ -697,13 +659,7 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
                               gap: 12,
                             }}
                           >
-                            <div
-                              style={{
-                                display: 'grid',
-                                gridTemplateColumns: '1fr 1fr',
-                                gap: 12,
-                              }}
-                            >
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                               <div className="card card-pad" style={{ fontSize: 13 }}>
                                 <div className="detail-label" style={{ marginBottom: 6 }}>
                                   Project Summary
@@ -716,13 +672,12 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
                                   {project.latestMismatchCount === 1 ? '' : 'es'}.
                                 </p>
                               </div>
+
                               <div className="card card-pad" style={{ fontSize: 13 }}>
                                 <div className="detail-label" style={{ marginBottom: 6 }}>
                                   Latest Run
                                 </div>
-                                <p style={{ color: 'var(--ink-2)' }}>
-                                  {formatScanRunLabel(project.lastUpdated)}
-                                </p>
+                                <p style={{ color: 'var(--ink-2)' }}>{formatScanRunLabel(project.lastUpdated)}</p>
                                 <p
                                   style={{
                                     color: 'var(--ink-4)',
@@ -735,10 +690,12 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
                                 </p>
                               </div>
                             </div>
+
                             <div className="card card-pad" style={{ fontSize: 13 }}>
                               <div className="detail-label" style={{ marginBottom: 6 }}>
                                 Latest Scan Issues
                               </div>
+
                               {!project.latestScanId ? (
                                 <p style={{ color: 'var(--ink-3)' }}>
                                   This project does not have a latest scan yet.
@@ -766,12 +723,13 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
                         </td>
                       </tr>
                     ) : null}
-                  </>
+                  </Fragment>
                 )
               })}
             </tbody>
           </table>
         )}
+
         <div
           style={{
             padding: '12px 20px',
@@ -781,9 +739,7 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
             background: 'var(--bg-sunken)',
           }}
         >
-          <span
-            style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)' }}
-          >
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)' }}>
             Showing {sortedRows.length} of {projectRows.length} projects
           </span>
         </div>
