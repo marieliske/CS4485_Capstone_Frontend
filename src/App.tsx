@@ -24,6 +24,36 @@ type PageKey =
   | 'wf-user-settings'
   | 'scanHistory'
 
+const activePageStorageKey = 'docrot_active_page'
+
+const pageKeys: PageKey[] = [
+  'dashboard',
+  'projects',
+  'issues',
+  'configuration',
+  'wf-user-settings',
+  'scanHistory',
+]
+
+function isPageKey(value: string | null | undefined): value is PageKey {
+  return typeof value === 'string' && pageKeys.includes(value as PageKey)
+}
+
+function parsePageFromHash(hash: string): PageKey | null {
+  const raw = hash.replace(/^#\/?/, '').trim()
+  return isPageKey(raw) ? raw : null
+}
+
+function readInitialPage(): PageKey {
+  const fromHash = parsePageFromHash(window.location.hash)
+  if (fromHash) return fromHash
+
+  const fromStorage = localStorage.getItem(activePageStorageKey)
+  if (isPageKey(fromStorage)) return fromStorage
+
+  return 'dashboard'
+}
+
 const githubHandlePattern = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i
 
 function normalizeHandle(value: string | null | undefined): string | null {
@@ -111,8 +141,9 @@ function BellIcon() {
 function AppShell() {
   const { user, logout } = useAuth()
 
-  const [activePage, setActivePage] = useState<PageKey>('dashboard')
+  const [activePage, setActivePage] = useState<PageKey>(() => readInitialPage())
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [focusedScanId, setFocusedScanId] = useState<string | null>(null)
   const [tweaksOpen, setTweaksOpen] = useState(false)
 
@@ -121,6 +152,7 @@ function AppShell() {
       setFocusedScanId(null)
     }
     setActivePage(page)
+    setMobileNavOpen(false)
   }
 
   const openHistory = (scanId?: string) => {
@@ -136,6 +168,67 @@ function AppShell() {
   const openProjects = () => {
     setActivePage('projects')
   }
+
+  const toggleMobileNav = () => {
+    setSidebarCollapsed(false)
+    setMobileNavOpen((current) => !current)
+  }
+
+  useEffect(() => {
+    localStorage.setItem(activePageStorageKey, activePage)
+
+    const nextHash = `#${activePage}`
+    if (window.location.hash !== nextHash) {
+      window.history.replaceState(
+        null,
+        '',
+        `${window.location.pathname}${window.location.search}${nextHash}`,
+      )
+    }
+  }, [activePage])
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const pageFromHash = parsePageFromHash(window.location.hash)
+      if (pageFromHash && pageFromHash !== activePage) {
+        navigateToPage(pageFromHash)
+      }
+    }
+
+    window.addEventListener('hashchange', handleHashChange)
+
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange)
+    }
+  }, [activePage])
+
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMobileNavOpen(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleEscape)
+
+    return () => {
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [])
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth > 800) {
+        setMobileNavOpen(false)
+      }
+    }
+
+    window.addEventListener('resize', handleResize)
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
+    }
+  }, [])
 
   const navItems: Array<{ key: PageKey; label: string; icon: React.ReactNode }> = [
     {
@@ -245,7 +338,11 @@ function AppShell() {
   }
 
   return (
-    <div className="shell" data-sidebar={sidebarCollapsed ? 'collapsed' : undefined}>
+    <div
+      className="shell"
+      data-sidebar={sidebarCollapsed ? 'collapsed' : undefined}
+      data-mobile-sidebar={mobileNavOpen ? 'open' : undefined}
+    >
       <aside className="sidebar">
         <div className="sidebar-brand">
           <div
@@ -335,8 +432,29 @@ function AppShell() {
         </div>
       </aside>
 
+      <button
+        type="button"
+        className="mobile-nav-backdrop"
+        aria-label="Close navigation menu"
+        onClick={() => setMobileNavOpen(false)}
+      />
+
       <main className="main">
         <header className="topbar">
+          <button
+            type="button"
+            className="icon-btn mobile-nav-toggle"
+            aria-label="Toggle navigation menu"
+            aria-expanded={mobileNavOpen}
+            onClick={toggleMobileNav}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M4 7h16" />
+              <path d="M4 12h16" />
+              <path d="M4 17h16" />
+            </svg>
+          </button>
+
           <div className="topbar-crumbs">
             <span>docrot</span>
             <span className="sep">/</span>
@@ -396,16 +514,19 @@ function AppShell() {
 
 function App() {
   const { user, loading } = useAuth()
+  const [usernameReady, setUsernameReady] = useState(localPreviewMode)
 
   useEffect(() => {
     const currentUser = user
 
     if (!currentUser) {
       setGithubUsernameFilter(null)
+      setUsernameReady(true)
       return
     }
 
     let cancelled = false
+    setUsernameReady(false)
 
     async function hydrateGithubUsername(authenticatedUser: User) {
       const username = await resolveGitHubUsername(authenticatedUser)
@@ -417,6 +538,7 @@ function App() {
         localStorage.setItem('docrot_github_username', username)
       }
       setGithubUsernameFilter(username)
+      setUsernameReady(true)
     }
 
     void hydrateGithubUsername(currentUser)
@@ -462,6 +584,7 @@ function App() {
   }
 
   if (loading) return null
+  if (user && !localPreviewMode && !usernameReady) return null
 
   return user || localPreviewMode ? (
     <AppShell />

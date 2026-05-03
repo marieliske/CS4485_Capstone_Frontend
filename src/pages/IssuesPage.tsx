@@ -219,7 +219,7 @@ export function IssuesPage({ onOpenHistory, searchQuery, scanId }: IssuesPagePro
             <p>Try changing filters or run a new scan.</p>
           </div>
         ) : (
-          <table className="tbl">
+          <table className="tbl issue-table">
             <thead>
               <tr>
                 <th style={{ width: 130 }}>Severity</th>

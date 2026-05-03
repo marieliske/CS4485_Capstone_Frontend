@@ -121,17 +121,22 @@ export function useIssues(scanId?: string | null) {
     const targetScanId = targetIssue?.scanId
     if (!repoId || !targetScanId) return
 
-    const backendIssueId = issueId.includes(':') ? issueId.split(':').slice(1).join(':') : issueId
+    const backendIssueId =
+      targetIssue?.backendIssueId ??
+      (issueId.includes(':') ? issueId.split(':').slice(1).join(':') : issueId)
 
     setIssues((prev) =>
       prev.map((issue) => (issue.id === issueId ? { ...issue, status: 'closed' as const } : issue)),
     )
+    setError(null)
     try {
       await apiCloseIssue(repoId, targetScanId, backendIssueId)
-    } catch {
+    } catch (err) {
       setIssues((prev) =>
         prev.map((issue) => (issue.id === issueId ? { ...issue, status: 'open' as const } : issue)),
       )
+      const message = err instanceof Error ? err.message : 'Unable to close issue.'
+      setError(message)
     }
   }, [issues])
 
@@ -141,17 +146,22 @@ export function useIssues(scanId?: string | null) {
     const targetScanId = targetIssue?.scanId
     if (!repoId || !targetScanId) return
 
-    const backendIssueId = issueId.includes(':') ? issueId.split(':').slice(1).join(':') : issueId
+    const backendIssueId =
+      targetIssue?.backendIssueId ??
+      (issueId.includes(':') ? issueId.split(':').slice(1).join(':') : issueId)
 
     setIssues((prev) =>
       prev.map((issue) => (issue.id === issueId ? { ...issue, status: 'open' as const } : issue)),
     )
+    setError(null)
     try {
       await apiReopenIssue(repoId, targetScanId, backendIssueId)
-    } catch {
+    } catch (err) {
       setIssues((prev) =>
         prev.map((issue) => (issue.id === issueId ? { ...issue, status: 'closed' as const } : issue)),
       )
+      const message = err instanceof Error ? err.message : 'Unable to reopen issue.'
+      setError(message)
     }
   }, [issues])
 

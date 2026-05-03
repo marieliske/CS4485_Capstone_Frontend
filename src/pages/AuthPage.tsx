@@ -189,11 +189,6 @@ export function AuthPage({ onAuthenticate }: AuthPageProps) {
             ))}
           </div>
 
-          <div className="auth-footer">
-            <button type="button">Privacy Policy</button>
-            <button type="button">Terms of Service</button>
-            <button type="button">Help Center</button>
-          </div>
         </div>
       </div>
     </section>
