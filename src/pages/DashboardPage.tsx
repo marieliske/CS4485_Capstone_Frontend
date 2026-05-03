@@ -587,7 +587,7 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
                 </span>
               </div>
               <div className="rot-meta-row">
-                <span className="label">Health score</span>
+                <span className="label">Rot score</span>
                 <span
                   className="value mono"
                   style={{ color: rotPct >= 65 ? 'var(--critical)' : rotPct >= 35 ? 'var(--warning)' : 'var(--success)' }}
@@ -602,46 +602,31 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
 
       {showAddRepoSteps ? (
         <div
+          className="repo-onboarding-overlay"
           role="dialog"
           aria-modal="true"
           aria-label="Add repository steps"
           onClick={closeAddRepoGuide}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0, 0, 0, 0.35)',
-            display: 'grid',
-            placeItems: 'center',
-            zIndex: 50,
-            padding: 24,
-          }}
         >
           <div
+            className="repo-onboarding-modal"
             onClick={(event) => event.stopPropagation()}
-            style={{
-              width: 'min(680px, calc(100vw - 32px))',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--r-md)',
-              background: 'var(--bg-elev)',
-              boxShadow: 'var(--shadow-lg)',
-              overflow: 'hidden',
-            }}
           >
-            <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--border)' }}>
-              <div className="kicker" style={{ marginBottom: 6 }}>
+            <div className="repo-onboarding-header">
+              <div className="kicker repo-onboarding-kicker">
                 Repository onboarding
               </div>
-              <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 28, fontWeight: 400, lineHeight: 1.1 }}>
+              <h3 className="repo-onboarding-title">
                 Add Repo Setup Steps
               </h3>
             </div>
 
-            <div style={{ padding: '16px 18px', display: 'grid', gap: 12 }}>
-              <p style={{ color: 'var(--ink-2)', fontSize: 13.5 }}>
+            <div className="repo-onboarding-body">
+              <p className="repo-onboarding-copy">
                 Follow these steps to connect a repository and seed the first baseline scan.
               </p>
 
-              <ol style={{ margin: 0, paddingLeft: 20, display: 'grid', gap: 10, color: 'var(--ink-2)', fontSize: 13.5 }}>
+              <ol className="repo-onboarding-list">
                 <li>
                   In your terminal, run:
                   <div className="repo-command-row">
@@ -657,15 +642,7 @@ export function DashboardPage({ onOpenHistory, onOpenIssues, onOpenProjects, use
               </ol>
             </div>
 
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                gap: 8,
-                padding: '14px 18px',
-                borderTop: '1px solid var(--border)',
-              }}
-            >
+            <div className="repo-onboarding-footer repo-onboarding-footer-split">
               <button type="button" className="btn" onClick={closeAddRepoGuide}>
                 Close
               </button>

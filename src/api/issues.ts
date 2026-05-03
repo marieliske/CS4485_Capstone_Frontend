@@ -119,10 +119,11 @@ function normalizeIssue(rawPayload: unknown, index: number, scan: ScanRecord): I
   const rawMismatchType = toStringValue(raw.mismatchType)
   const mismatchType = rawMismatchType ? parseMismatchType(rawMismatchType) : inferMismatchType(reason)
 
-  const baseId = toStringValue(raw.id, `issue-${index + 1}`)
+  const backendIssueId = toStringValue(raw._flagId, toStringValue(raw.id, `issue-${index + 1}`))
 
   return {
-    id: `${scanId}:${baseId}`,
+    id: `${scanId}:${backendIssueId}`,
+    backendIssueId,
     scanId,
     repoId: toStringValue(raw._repoId),
     repoPath: toStringValue(scan.repo_path, 'unknown-repo'),

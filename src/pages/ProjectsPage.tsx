@@ -127,8 +127,10 @@ function toProjectRow(repoName: string, scans: ScanRecord[]): ProjectRow {
   )
 
   const latestStatus =
-    (typeof latestScan.status === 'string' && latestScan.status) ||
-    getLatestStatus(latestScore, latestMismatchCount)
+    latestScore === 0 && latestMismatchCount === 0
+      ? 'Clean'
+      : (typeof latestScan.status === 'string' && latestScan.status) ||
+        getLatestStatus(latestScore, latestMismatchCount)
 
   return {
     name: repoName.split('/').at(-1) || repoName,
@@ -317,62 +319,31 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
 
       {showAddRepoSteps ? (
         <div
+          className="repo-onboarding-overlay"
           role="dialog"
           aria-modal="true"
           aria-label="Add repository steps"
           onClick={() => setShowAddRepoSteps(false)}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0, 0, 0, 0.35)',
-            display: 'grid',
-            placeItems: 'center',
-            zIndex: 50,
-            padding: 16,
-          }}
         >
           <div
+            className="repo-onboarding-modal"
             onClick={(event) => event.stopPropagation()}
-            style={{
-              width: 'min(760px, 100%)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--r-md)',
-              background: 'var(--bg-elev)',
-              boxShadow: 'var(--shadow-lg)',
-              overflow: 'hidden',
-            }}
           >
-            <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--border)' }}>
-              <div className="kicker" style={{ marginBottom: 6 }}>
+            <div className="repo-onboarding-header">
+              <div className="kicker repo-onboarding-kicker">
                 Repository onboarding
               </div>
-              <h3
-                style={{
-                  fontFamily: 'var(--font-serif)',
-                  fontSize: 28,
-                  fontWeight: 400,
-                  lineHeight: 1.1,
-                }}
-              >
+              <h3 className="repo-onboarding-title">
                 Add Repo Setup Steps
               </h3>
             </div>
 
-            <div style={{ padding: '16px 18px', display: 'grid', gap: 12 }}>
-              <p style={{ color: 'var(--ink-2)', fontSize: 13.5 }}>
+            <div className="repo-onboarding-body">
+              <p className="repo-onboarding-copy">
                 Follow these steps to connect a repository and seed the first baseline scan.
               </p>
 
-              <ol
-                style={{
-                  margin: 0,
-                  paddingLeft: 20,
-                  display: 'grid',
-                  gap: 10,
-                  color: 'var(--ink-2)',
-                  fontSize: 13.5,
-                }}
-              >
+              <ol className="repo-onboarding-list">
                 <li>
                   In your terminal, run:
                   <div className="repo-command-row">
@@ -388,15 +359,7 @@ export function ProjectsPage({ onInspectProject }: ProjectsPageProps) {
               </ol>
             </div>
 
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'flex-end',
-                gap: 8,
-                padding: '14px 18px',
-                borderTop: '1px solid var(--border)',
-              }}
-            >
+            <div className="repo-onboarding-footer">
               <button type="button" className="btn" onClick={() => setShowAddRepoSteps(false)}>
                 Close
               </button>

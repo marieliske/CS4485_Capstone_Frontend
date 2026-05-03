@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth'
 import { useAuth } from '../auth/AuthContext'
 import { localPreviewMode } from '../firebase'
-import { useSettings, type AccentSetting, type DensitySetting, type FontSetting, type ThemeSetting, type VizSetting } from '../context/SettingsContext'
+import { useSettings, type AccentSetting, type FontSetting, type ThemeSetting, type VizSetting } from '../context/SettingsContext'
 
 type SettingsSection = 'profile' | 'appearance' | 'notifications' | 'tokens' | 'billing'
 
@@ -27,7 +27,7 @@ const NAV_ITEMS: { key: SettingsSection; label: string }[] = [
 
 export function UserSettingsWireframePage() {
   const { user } = useAuth()
-  const { settings, setTheme, setAccent, setDensity, setViz, setFont } = useSettings()
+  const { settings, setTheme, setAccent, setViz, setFont } = useSettings()
 
   const initials = (user?.displayName ?? user?.email ?? 'U')
     .split(/[\s@]/)
@@ -372,22 +372,6 @@ export function UserSettingsWireframePage() {
                       />
                       <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="tweak-group">
-                <label>Density</label>
-                <div className="tweak-row">
-                  {(['compact', 'cozy', 'comfortable'] as DensitySetting[]).map((v) => (
-                    <button
-                      key={v}
-                      type="button"
-                      className={`tweak-chip${settings.density === v ? ' active' : ''}`}
-                      onClick={() => setDensity(v)}
-                    >
-                      {v.charAt(0).toUpperCase() + v.slice(1)}
-                    </button>
                   ))}
                 </div>
               </div>

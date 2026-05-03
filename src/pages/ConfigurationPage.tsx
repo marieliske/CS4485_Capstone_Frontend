@@ -38,6 +38,51 @@ const initialMappings: MappingRow[] = [
   },
 ]
 
+const mappingsStorageKey = 'docrot_configuration_mappings_v1'
+
+function isMappingTone(value: unknown): value is MappingTone {
+  return value === 'active' || value === 'pending' || value === 'disabled'
+}
+
+function isMappingStatus(value: unknown): value is MappingRow['status'] {
+  return value === 'Active' || value === 'Pending' || value === 'Disabled'
+}
+
+function isMappingRow(value: unknown): value is MappingRow {
+  if (!value || typeof value !== 'object') return false
+
+  const row = value as Record<string, unknown>
+
+  return (
+    typeof row.id === 'string' &&
+    typeof row.glob === 'string' &&
+    typeof row.doc === 'string' &&
+    typeof row.synced === 'string' &&
+    isMappingStatus(row.status) &&
+    isMappingTone(row.tone)
+  )
+}
+
+function loadSavedMappings(): MappingRow[] | null {
+  if (typeof window === 'undefined') return null
+
+  try {
+    const raw = window.localStorage.getItem(mappingsStorageKey)
+    if (!raw) return null
+
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return null
+    if (parsed.length === 0) return []
+
+    const validRows = parsed.filter(isMappingRow)
+    if (validRows.length !== parsed.length) return null
+
+    return validRows
+  } catch {
+    return null
+  }
+}
+
 function toStatusMeta(enabled: boolean): {
   status: MappingRow['status']
   tone: MappingTone
@@ -55,8 +100,14 @@ function toneToPill(tone: MappingTone): string {
   return ''
 }
 
+function toneToDotClass(tone: MappingTone): string {
+  if (tone === 'active') return 'config-status-dot-active'
+  if (tone === 'pending') return 'config-status-dot-pending'
+  return 'config-status-dot-disabled'
+}
+
 export function ConfigurationPage() {
-  const [mappings, setMappings] = useState<MappingRow[]>(initialMappings)
+  const [mappings, setMappings] = useState<MappingRow[]>(() => loadSavedMappings() ?? initialMappings)
   const [threshold, setThreshold] = useState(85)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
 
@@ -141,6 +192,14 @@ export function ConfigurationPage() {
   }
 
   useEffect(() => {
+    try {
+      window.localStorage.setItem(mappingsStorageKey, JSON.stringify(mappings))
+    } catch {
+      // Ignore persistence failures (e.g., private mode or blocked storage).
+    }
+  }, [mappings])
+
+  useEffect(() => {
     const handleApply = () => {
       handleApplyChanges()
     }
@@ -174,7 +233,7 @@ export function ConfigurationPage() {
       </div>
 
       {/* Doc Mappings */}
-      <div className="card" style={{ marginBottom: 20, overflow: 'hidden' }}>
+      <div className="card" style={{ marginBottom: 20, overflow: 'visible' }}>
         <div className="card-head">
           <h3>{'{ }'} Doc Mappings</h3>
           <span className="hint">{totalPatterns} patterns</span>
@@ -185,7 +244,7 @@ export function ConfigurationPage() {
               <th>Glob Pattern</th>
               <th>Documentation File</th>
               <th style={{ width: 110 }}>Last Synced</th>
-              <th style={{ width: 90 }}>Status</th>
+              <th style={{ width: 132 }}>Status</th>
               <th style={{ width: 50 }} />
             </tr>
           </thead>
@@ -226,8 +285,11 @@ export function ConfigurationPage() {
                   >
                     {row.synced}
                   </td>
-                  <td>
-                    <span className={`pill ${toneToPill(row.tone)}`}>● {row.status}</span>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    <span className={`pill config-status-pill ${toneToPill(row.tone)}`}>
+                      <span className={`config-status-dot ${toneToDotClass(row.tone)}`} />
+                      {row.status}
+                    </span>
                   </td>
                   <td style={{ position: 'relative' }}>
                     <button
@@ -254,7 +316,7 @@ export function ConfigurationPage() {
                           padding: '0.35rem',
                           display: 'grid',
                           gap: '0.25rem',
-                          zIndex: 10,
+                          zIndex: 40,
                           boxShadow: 'var(--shadow-md)',
                         }}
                       >
@@ -293,7 +355,7 @@ export function ConfigurationPage() {
       </div>
 
       {/* Grid: threshold + summary */}
-      <div className="grid-2" style={{ marginBottom: 20 }}>
+      <div className="grid-2 config-grid-2" style={{ marginBottom: 20 }}>
         {/* Detection Sensitivity */}
         <div className="card card-pad">
           <div
@@ -433,12 +495,6 @@ export function ConfigurationPage() {
         </p>
       </div>
 
-      {/* Footer */}
-      <div className="auth-footer">
-        <button type="button">Privacy Policy</button>
-        <button type="button">API Docs</button>
-        <button type="button">Help Center</button>
-      </div>
     </div>
   )
 }

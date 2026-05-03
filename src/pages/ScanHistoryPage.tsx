@@ -337,7 +337,8 @@ export function ScanHistoryPage({
             <p>{error ?? 'No scans match your current filters.'}</p>
           </div>
         ) : (
-          <table className="tbl">
+          <div className="scan-history-table-wrap">
+            <table className="tbl scan-history-table">
             <thead>
               <tr>
                 <th style={{ width: 160 }}>Scan</th>
@@ -363,8 +364,8 @@ export function ScanHistoryPage({
 
                 return (
                   <Fragment key={scan.id}>
-                    <tr>
-                      <td>
+                    <tr className={`scan-history-row tone-${statusTone}`}>
+                      <td data-label="Scan">
                         <strong style={{ fontSize: 12.5, fontWeight: 600 }}>
                           {formatScanRunLabel(scan.created_at)}
                         </strong>
@@ -381,7 +382,7 @@ export function ScanHistoryPage({
                         </div>
                       </td>
 
-                      <td>
+                      <td data-label="Repository">
                         <strong style={{ fontSize: 13 }}>{scan.repo_path ?? 'Unknown'}</strong>
                         {scan.commit_sha ? (
                           <div
@@ -397,7 +398,7 @@ export function ScanHistoryPage({
                         ) : null}
                       </td>
 
-                      <td>
+                      <td data-label="Rot score">
                         <div className="mini-score">
                           <div className="mini-score-bar">
                             <span
@@ -416,7 +417,7 @@ export function ScanHistoryPage({
                         </div>
                       </td>
 
-                      <td>
+                      <td data-label="Mismatches">
                         {(scan.mismatch_count ?? 0) === 0 ? (
                           <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-4)' }}>
                             none
@@ -428,11 +429,11 @@ export function ScanHistoryPage({
                         )}
                       </td>
 
-                      <td>
+                      <td data-label="Status">
                         <span className={`pill ${statusPill}`}>{scan.status ?? 'completed'}</span>
                       </td>
 
-                      <td>
+                      <td data-label="Actions">
                         <button
                           type="button"
                           className="btn btn-sm btn-ghost"
@@ -444,7 +445,7 @@ export function ScanHistoryPage({
                     </tr>
 
                     {isOpen ? (
-                      <tr>
+                      <tr className="scan-history-row-expanded">
                         <td colSpan={6} style={{ padding: 0, background: 'var(--bg-sunken)' }}>
                           <div
                             style={{
@@ -454,13 +455,7 @@ export function ScanHistoryPage({
                               gap: 12,
                             }}
                           >
-                            <div
-                              style={{
-                                display: 'grid',
-                                gridTemplateColumns: '1fr 1fr',
-                                gap: 12,
-                              }}
-                            >
+                            <div className="scan-history-detail-grid" style={{ gap: 12 }}>
                               <div className="card card-pad">
                                 <div className="detail-label">Report Summary</div>
                                 {detailLoading ? (
@@ -564,7 +559,8 @@ export function ScanHistoryPage({
                 )
               })}
             </tbody>
-          </table>
+            </table>
+          </div>
         )}
 
         {totalPages > 1 ? (

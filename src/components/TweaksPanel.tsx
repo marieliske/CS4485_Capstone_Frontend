@@ -1,4 +1,4 @@
-import { useSettings, type AccentSetting, type DensitySetting, type FontSetting, type ThemeSetting, type VizSetting } from '../context/SettingsContext'
+import { useSettings, type AccentSetting, type FontSetting, type ThemeSetting, type VizSetting } from '../context/SettingsContext'
 
 interface TweaksPanelProps {
   open: boolean
@@ -14,7 +14,7 @@ const ACCENT_COLORS: Record<AccentSetting, string> = {
 }
 
 export function TweaksPanel({ open, onClose }: TweaksPanelProps) {
-  const { settings, setTheme, setAccent, setDensity, setViz, setFont } = useSettings()
+  const { settings, setTheme, setAccent, setViz, setFont } = useSettings()
 
   if (!open) return null
 
@@ -77,23 +77,6 @@ export function TweaksPanel({ open, onClose }: TweaksPanelProps) {
                 aria-label={v}
                 title={v}
               />
-            ))}
-          </div>
-        </div>
-
-        {/* Density */}
-        <div className="tweaks-section">
-          <div className="tweaks-section-label">Density</div>
-          <div className="tweaks-btn-row">
-            {(['compact', 'cozy', 'comfortable'] as DensitySetting[]).map((v) => (
-              <button
-                key={v}
-                type="button"
-                className={`tweaks-btn${settings.density === v ? ' active' : ''}`}
-                onClick={() => setDensity(v)}
-              >
-                {v.charAt(0).toUpperCase() + v.slice(1)}
-              </button>
             ))}
           </div>
         </div>

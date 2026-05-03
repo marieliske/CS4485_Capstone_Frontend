@@ -52,6 +52,14 @@ function invalidateCachedByPrefix(prefix: string): void {
   }
 }
 
+function repoScanIssuesCacheKey(repoId: string, scanId: string): string {
+  return `issues:${repoId}:${scanId}`
+}
+
+function scanIssuesCacheKey(scanId: string): string {
+  return `issues:${scanId}`
+}
+
 // ---------------------------------------------------------------------------
 // GitHub username filter — set at sign-in, used to filter repos
 // ---------------------------------------------------------------------------
@@ -59,7 +67,8 @@ function invalidateCachedByPrefix(prefix: string): void {
 let _githubUsername: string | null = null
 
 export function setGithubUsernameFilter(username: string | null) {
-  _githubUsername = username
+  const normalized = username?.trim().toLowerCase() ?? ''
+  _githubUsername = normalized || null
   clearCache()
 }
 
@@ -97,10 +106,32 @@ function toRepoRecord(id: string, data: DocumentData): RepoRecord {
   }
 }
 
+function extractOwnerFromRepo(repo: RepoRecord): string | null {
+  const fromFullName = repo.full_name.split('/')[0]?.trim().toLowerCase()
+  if (fromFullName) {
+    return fromFullName
+  }
+
+  const fromUrl = repo.github_url.match(/github\.com\/([^/]+)\//i)?.[1]?.trim().toLowerCase()
+  if (fromUrl) {
+    return fromUrl
+  }
+
+  return null
+}
+
 function belongsToUser(repo: RepoRecord): boolean {
-  if (!_githubUsername) return true
-  const owner = repo.full_name.split('/')[0]
-  return owner.toLowerCase() === _githubUsername.toLowerCase()
+  if (!_githubUsername) {
+    // Security-first: no resolved identity means no data exposure.
+    return localPreviewMode
+  }
+
+  const owner = extractOwnerFromRepo(repo)
+  if (!owner) {
+    return false
+  }
+
+  return owner === _githubUsername.toLowerCase()
 }
 
 export async function getRepos(): Promise<RepoRecord[]> {
@@ -192,7 +223,7 @@ function applyLiveIssueMetrics(scan: ScanRecord, issues: DocumentData[]): ScanRe
 }
 
 async function getIssuesForScanInRepo(repoId: string, scanId: string): Promise<DocumentData[]> {
-  const key = `issues:${scanId}`
+  const key = repoScanIssuesCacheKey(repoId, scanId)
   const cached = getCached<DocumentData[]>(key)
   if (cached) return cached
 
@@ -204,7 +235,7 @@ async function getIssuesForScanInRepo(repoId: string, scanId: string): Promise<D
 
   const issuesRef = collection(db, 'repos', repoId, 'scan_runs', scanId, 'flags')
   const snap = await measure(`getIssuesForScan:${repoId}`, () => getDocs(issuesRef))
-  const result = snap.docs.map((d) => ({ id: d.id, _repoId: repoId, ...d.data() }))
+  const result = snap.docs.map((d) => ({ ...d.data(), id: d.id, _flagId: d.id, _repoId: repoId }))
   setCached(key, result)
   return result
 }
@@ -297,7 +328,7 @@ export async function getScanRunById(scanId: string): Promise<ScanRecord | null>
 // ---------------------------------------------------------------------------
 
 export async function getIssuesForScan(scanId: string): Promise<DocumentData[]> {
-  const key = `issues:${scanId}`
+  const key = scanIssuesCacheKey(scanId)
   const cached = getCached<DocumentData[]>(key)
   if (cached) return cached
 
@@ -315,33 +346,70 @@ export async function getIssuesForScan(scanId: string): Promise<DocumentData[]> 
   }
 
   const repos = await getRepos()
-  for (const repo of repos) {
-    const result = await getIssuesForScanInRepo(repo.id, scanId)
-    if (result.length > 0) return result
-  }
-  setCached(key, [])
-  return []
+  const allResults = await Promise.all(repos.map((repo) => getIssuesForScanInRepo(repo.id, scanId)))
+  const merged = allResults.flat()
+  setCached(key, merged)
+  return merged
 }
 
 export async function closeIssue(repoId: string, scanId: string, issueId: string): Promise<void> {
   if (localPreviewMode) {
     setPreviewIssueStatus(repoId, scanId, issueId, 'closed')
-    const key = `issues:${scanId}`
+    const repoKey = repoScanIssuesCacheKey(repoId, scanId)
+    const repoCached = getCached<DocumentData[]>(repoKey)
+    if (repoCached) {
+      setCached(
+        repoKey,
+        repoCached.map((issue) =>
+          issue['id'] === issueId || issue['_flagId'] === issueId
+            ? { ...issue, status: 'closed' }
+            : issue,
+        ),
+      )
+    }
+
+    const key = scanIssuesCacheKey(scanId)
     const cached = getCached<DocumentData[]>(key)
     if (cached) {
-      setCached(key, cached.map((issue) => issue['id'] === issueId ? { ...issue, status: 'closed' } : issue))
+      setCached(
+        key,
+        cached.map((issue) =>
+          (issue['id'] === issueId || issue['_flagId'] === issueId) && issue['_repoId'] === repoId
+            ? { ...issue, status: 'closed' }
+            : issue,
+        ),
+      )
     }
     invalidateCachedByPrefix('allScanRuns:')
     invalidateCachedByPrefix('scanRuns:')
     return
   }
 
-  const flagRef = doc(db, 'repos', repoId, 'scan_runs', scanId, 'flags', issueId)
-  await updateDoc(flagRef, { status: 'closed' })
-  const key = `issues:${scanId}`
+  const resolvedRepoId = await updateIssueStatusWithFallback(repoId, scanId, issueId, 'closed')
+  const repoKey = repoScanIssuesCacheKey(resolvedRepoId, scanId)
+  const repoCached = getCached<DocumentData[]>(repoKey)
+  if (repoCached) {
+    setCached(
+      repoKey,
+      repoCached.map((issue) =>
+        issue['id'] === issueId || issue['_flagId'] === issueId
+          ? { ...issue, status: 'closed' }
+          : issue,
+      ),
+    )
+  }
+
+  const key = scanIssuesCacheKey(scanId)
   const cached = getCached<DocumentData[]>(key)
   if (cached) {
-    setCached(key, cached.map((issue) => issue['id'] === issueId ? { ...issue, status: 'closed' } : issue))
+    setCached(
+      key,
+      cached.map((issue) =>
+        (issue['id'] === issueId || issue['_flagId'] === issueId) && issue['_repoId'] === resolvedRepoId
+          ? { ...issue, status: 'closed', _repoId: resolvedRepoId }
+          : issue,
+      ),
+    )
   }
   invalidateCachedByPrefix('allScanRuns:')
   invalidateCachedByPrefix('scanRuns:')
@@ -350,22 +418,61 @@ export async function closeIssue(repoId: string, scanId: string, issueId: string
 export async function reopenIssue(repoId: string, scanId: string, issueId: string): Promise<void> {
   if (localPreviewMode) {
     setPreviewIssueStatus(repoId, scanId, issueId, 'open')
-    const key = `issues:${scanId}`
+    const repoKey = repoScanIssuesCacheKey(repoId, scanId)
+    const repoCached = getCached<DocumentData[]>(repoKey)
+    if (repoCached) {
+      setCached(
+        repoKey,
+        repoCached.map((issue) =>
+          issue['id'] === issueId || issue['_flagId'] === issueId
+            ? { ...issue, status: 'open' }
+            : issue,
+        ),
+      )
+    }
+
+    const key = scanIssuesCacheKey(scanId)
     const cached = getCached<DocumentData[]>(key)
     if (cached) {
-      setCached(key, cached.map((issue) => issue['id'] === issueId ? { ...issue, status: 'open' } : issue))
+      setCached(
+        key,
+        cached.map((issue) =>
+          (issue['id'] === issueId || issue['_flagId'] === issueId) && issue['_repoId'] === repoId
+            ? { ...issue, status: 'open' }
+            : issue,
+        ),
+      )
     }
     invalidateCachedByPrefix('allScanRuns:')
     invalidateCachedByPrefix('scanRuns:')
     return
   }
 
-  const flagRef = doc(db, 'repos', repoId, 'scan_runs', scanId, 'flags', issueId)
-  await updateDoc(flagRef, { status: 'open' })
-  const key = `issues:${scanId}`
+  const resolvedRepoId = await updateIssueStatusWithFallback(repoId, scanId, issueId, 'open')
+  const repoKey = repoScanIssuesCacheKey(resolvedRepoId, scanId)
+  const repoCached = getCached<DocumentData[]>(repoKey)
+  if (repoCached) {
+    setCached(
+      repoKey,
+      repoCached.map((issue) =>
+        issue['id'] === issueId || issue['_flagId'] === issueId
+          ? { ...issue, status: 'open' }
+          : issue,
+      ),
+    )
+  }
+
+  const key = scanIssuesCacheKey(scanId)
   const cached = getCached<DocumentData[]>(key)
   if (cached) {
-    setCached(key, cached.map((issue) => issue['id'] === issueId ? { ...issue, status: 'open' } : issue))
+    setCached(
+      key,
+      cached.map((issue) =>
+        (issue['id'] === issueId || issue['_flagId'] === issueId) && issue['_repoId'] === resolvedRepoId
+          ? { ...issue, status: 'open', _repoId: resolvedRepoId }
+          : issue,
+      ),
+    )
   }
   invalidateCachedByPrefix('allScanRuns:')
   invalidateCachedByPrefix('scanRuns:')
@@ -427,4 +534,58 @@ export async function getFingerprintBaselines(repoId: string): Promise<DocumentD
   const ref = collection(db, 'repos', repoId, 'fingerprint_baselines')
   const snap = await getDocs(ref)
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+}
+
+async function updateIssueStatusWithFallback(
+  repoId: string,
+  scanId: string,
+  issueId: string,
+  status: 'open' | 'closed',
+): Promise<string> {
+  const attemptedRepos: string[] = []
+  const errorCodes = new Set<string>()
+
+  const tryUpdateInRepo = async (candidateRepoId: string): Promise<boolean> => {
+    attemptedRepos.push(candidateRepoId)
+    try {
+      const flagRef = doc(db, 'repos', candidateRepoId, 'scan_runs', scanId, 'flags', issueId)
+      await updateDoc(flagRef, { status })
+      return true
+    } catch (err) {
+      const code =
+        err && typeof err === 'object' && 'code' in err && typeof (err as { code?: unknown }).code === 'string'
+          ? (err as { code: string }).code
+          : 'unknown'
+      errorCodes.add(code)
+      return false
+    }
+  }
+
+  if (await tryUpdateInRepo(repoId)) {
+    return repoId
+  }
+
+  const repos = await getRepos()
+  for (const repo of repos) {
+    if (repo.id === repoId) continue
+    if (await tryUpdateInRepo(repo.id)) {
+      return repo.id
+    }
+  }
+
+  if (errorCodes.has('permission-denied') || errorCodes.has('firestore/permission-denied')) {
+    throw new Error(
+      `Permission denied updating issue status (${status}). Check deployed Firestore rules and auth claims. Scan=${scanId} issue=${issueId}.`,
+    )
+  }
+
+  if (errorCodes.has('not-found') || errorCodes.has('firestore/not-found')) {
+    throw new Error(
+      `Issue document not found for status update (${status}). Verify flag ID and scan linkage. Scan=${scanId} issue=${issueId}.`,
+    )
+  }
+
+  throw new Error(
+    `Unable to update issue status (${status}) after checking ${attemptedRepos.length} repo path(s). Scan=${scanId} issue=${issueId}.`,
+  )
 }
